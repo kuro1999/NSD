@@ -28,3 +28,4 @@ Questo repository contiene un laboratorio GNS3 strutturato per il lavoro collabo
 - Una persona alla volta modifica la topologia (`lab.gns3`)
 - Le configurazioni dei nodi sono indipendenti
 - Non caricare immagini o file runtime nel repository
+  ok
