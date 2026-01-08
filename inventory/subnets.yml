@@ -1,6 +1,6 @@
 pools:
   # Prefissi "pubblici" da laboratorio (documentation ranges)
-  as100_public: 198.51.100.0/24
+  as100_public: 1.0.0.0/8
   as200_public: 203.0.113.0/24
 
   # Pool privato da cui ritagliare TUTTI i /30 dei link router-router
