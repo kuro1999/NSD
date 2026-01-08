@@ -1,0 +1,9 @@
+links:
+  - endpoints: [R1, R2]
+    type: point-to-point
+
+  - endpoints: [R1, SW1]
+    type: ethernet
+
+  - endpoints: [SW1, FW1]
+    type: ethernet

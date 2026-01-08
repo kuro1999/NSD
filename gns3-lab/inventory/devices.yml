@@ -1,0 +1,16 @@
+devices:
+  - name: R1
+    role: router
+    os: iosv
+
+  - name: R2
+    role: router
+    os: iosv
+
+  - name: SW1
+    role: switch
+    os: iosvl2
+
+  - name: FW1
+    role: firewall
+    os: pfsense

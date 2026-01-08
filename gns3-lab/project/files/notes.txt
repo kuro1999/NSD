@@ -1,0 +1,8 @@
+💡 A cosa serve
+È una cartella di supporto per il progetto GNS3, per file che:
+
+servono ai nodi
+
+NON sono configurazioni dirette
+
+NON sono immagini di sistema
