@@ -1,4 +1,4 @@
-# GNS3 Lab – Progetto Collaborativo
+# GNS3 Lab – Progetto Collaborativ
 
 Questo repository contiene un laboratorio GNS3 strutturato per il lavoro collaborativo tramite Git.
 
