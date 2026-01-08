@@ -1,50 +1,31 @@
-# Firewall policy e implementazione
+# Firewall policy (finale)
 
-## 1. Obiettivi di policy (alto livello)
-1. LAN-client -> esterno: consentito solo traffico originato dal LAN-client (stateful)
-2. Traffico AV: consentito solo con central-node (nessun altro flusso)
-3. Inbound da esterno: consentire solo
-   - DNS (TCP/UDP 53) verso dns-server
-   - HTTP (TCP 80) verso dns-server
-   - IPsec verso eFW (UDP 500/4500 + ESP)
+## Nodi firewall/gateway
+- GW200: 10.0.200.2/30 (verso R201), 160.80.200.1/24 (DMZ)
+- eFW: 160.80.200.2/24 (outside/DMZ), 10.200.1.1/24 (LAN1)
+- iFW: 10.200.1.2/24 (LAN1), 10.200.2.1/24 (LAN2)
 
-## 2. Architettura
-- GW200: enforcement “edge”/perimetro verso DMZ e verso eFW (inbound control)
-- eFW: enforcement tra DMZ/outside e LAN1 (protezione enterprise + IPsec termination)
-- iFW: enforcement interno LAN1 <-> LAN2
+## Policy richiesta
+1) LAN-client (10.200.2.10) -> esterno consentito solo stateful (connessioni originate da LAN-client)
+2) AV (10.200.1.11-13) <-> solo central-node (10.202.3.10) via VPN enterprise
+3) Inbound da esterno (lato R201/AS100) consentito solo:
+   - DNS (TCP/UDP 53) verso DNS-server 160.80.200.3
+   - HTTP (TCP 80) verso DNS-server 160.80.200.3
+   - IPsec verso eFW 160.80.200.2 (UDP 500/4500 + ESP)
 
-## 3. Regole comuni (baseline)
-- Default: DROP su INPUT e FORWARD
-- Allow: ESTABLISHED,RELATED
-- Allow: ICMP mirato per troubleshooting (opzionale ma consigliato)
+## Implementazione (linee guida)
+- Default DROP su INPUT/FORWARD
+- ACCEPT ESTABLISHED,RELATED
+- GW200: filtra l’inbound verso DMZ/eFW (FORWARD), e consenti solo le eccezioni sopra
+- eFW: consenti IPsec in INPUT; consenti solo traffico necessario LAN1<->LAN3 via tunnel; blocca AV verso tutto il resto
+- iFW: consenti LAN2 -> fuori (stateful), blocca LAN2 verso AV e verso LAN1 se non necessario
 
-## 4. Regole specifiche per nodo (riassunto)
-### GW200
-- Allow inbound DNS/HTTP verso dns-server
-- Allow inbound IPsec verso eFW (forward)
-- Drop tutto il resto inbound dall’esterno
-
-### eFW
-- Allow IPsec (INPUT) per IKE/ESP
-- Allow traffico VPN LAN3 <-> LAN1 (solo ciò che serve per central-node <-> AV)
-- Bloccare AV <-> qualsiasi eccetto central-node
-
-### iFW
-- Allow LAN2 -> fuori (stateful)
-- Limitare LAN2 <-> LAN1 secondo necessità (minimo: evitare accesso LAN2 verso AV)
-
-## 5. Matrice flussi (compilare)
-| Source | Dest | Proto/Port | Allowed? | Nodo che applica |
+## Matrice flussi (minimo)
+| Sorgente | Destinazione | Proto/Port | Esito | Nodo enforcement |
 |---|---|---|---|---|
-| LAN-client | Internet/DMZ | tcp/80 | YES | iFW/eFW/GW200 |
-| LAN-client | Internet/DMZ | udp,tcp/53 | YES | iFW/eFW/GW200 |
-| Internet | dns-server | udp,tcp/53 | YES | GW200 |
-| Internet | dns-server | tcp/80 | YES | GW200 |
-| Internet | eFW | udp/500, udp/4500, ESP | YES | GW200 + eFW INPUT |
-| AV1-3 | central-node | ip (via VPN) | YES | eFW/iFW |
-| AV1-3 | altro | any | NO | eFW/iFW |
-
-## 6. Evidenze (salvare in `evidence/`)
-- Dump regole (iptables/nft)
-- Prove positive: curl/dig da LAN-client; accesso DNS/HTTP dall’esterno (se simulato)
-- Prove negative: porte non permesse; AV che prova a uscire verso DMZ o LAN-client
+| Esterno (AS100/AS200 core) | 160.80.200.3 | tcp/80 | ALLOW | GW200 |
+| Esterno (AS100/AS200 core) | 160.80.200.3 | udp,tcp/53 | ALLOW | GW200 |
+| Esterno (AS100/AS200 core) | 160.80.200.2 | udp/500,udp/4500,ESP | ALLOW | GW200 + eFW(INPUT) |
+| 10.200.2.0/24 | Esterno | any | ALLOW stateful | iFW/eFW/GW200 |
+| 10.200.1.0/24 (AV) | 10.202.3.10 | necessary | ALLOW | eFW/iFW |
+| 10.200.1.0/24 (AV) | altro | any | DENY | eFW/iFW |

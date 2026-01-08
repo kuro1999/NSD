@@ -1,26 +1,18 @@
 # MACsec con MKA (Site2 LAN)
 
-## 1. Obiettivo
-- Proteggere la LAN di Site2 con MACsec + MKA (pre-shared CAK/CKN)
-- Interfaccia logica: `macsec0`
-- IP assegnati su `macsec0` (non su eth0)
+## Segmento
+- Site2 LAN: 192.168.20.0/24
+- Nodi: CE2, client-B1, client-B2 (connessi via Sw1)
 
-## 2. Parametri
-- CAK (16 byte hex): <CAK_HEX>
-- CKN (32 byte hex): <CKN_HEX>
-- Nodi partecipanti: CE2, client-B1, client-B2
+## Implementazione attesa
+- Su CE2, client-B1, client-B2:
+  - creare `macsec0` su parent `eth0`
+  - usare stessa CAK/CKN (MKA PSK)
+  - assegnare IP *su macsec0* (non su eth0):
+    - CE2 macsec0: 192.168.20.1/24
+    - B1 macsec0: 192.168.20.10/24
+    - B2 macsec0: 192.168.20.11/24
 
-## 3. Configurazione (nmcli)
-Annotare qui i comandi effettivi usati, per ciascun host:
-- Creazione connessione macsec
-- Set parametri MKA
-- Assegnazione IP su macsec0
-- Bring up
-
-## 4. Test
-- ping tra B1/B2 e CE2 su IP di macsec0
-- cattura traffico su eth0 per mostrare frame MACsec/EAPOL (opzionale)
-
-## 5. Evidenze
-- Output `nmcli con show` in `configs/` o `evidence/`
-- Ping e (opzionale) tcpdump in `evidence/`
+## Test
+- ping B1 <-> CE2 e B2 <-> CE2 (usando IP su macsec0)
+- (opzionale) tcpdump su eth0 per evidenza EAPOL/MKA e frame MACsec

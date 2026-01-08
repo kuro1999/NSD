@@ -1,48 +1,42 @@
-# Routing design e configurazione
+# Routing design (finale)
 
-## 1. Obiettivi
-- AS100: OSPF per reachability interna; iBGP tra border; eBGP verso AS200
-- AS200: solo R201 parla BGP; R202 e GW200 hanno default verso R201
+## AS numbers
+- AS100
+- AS200
 
-## 2. OSPF (AS100)
-### Area e reti
-- Area: 0
-- Interface OSPF: link interni tra R101-R102-R103 (p2p /30)
+## OSPF (AS100)
+- Reti OSPF area 0:
+  - 10.0.12.0/30 (R101–R102)
+  - 10.0.13.0/30 (R101–R103)
+  - 10.0.23.0/30 (R102–R103)
+- Router-ID consigliato: loopback 1.255.0.x/32
 
-### Verifiche
-- Neighbors: FULL
-- Routing table: tutte le reti interne AS100 presenti
+## iBGP (AS100)
+- Sessione iBGP tra R101 e R103 usando loopback:
+  - R101 lo: 1.255.0.1
+  - R103 lo: 1.255.0.3
+- `next-hop-self` su border dove serve
 
-## 3. iBGP (AS100)
-### Peering
-- iBGP tra border router: <R101> <-> <R103>
-- Sessione su loopback (consigliato) o su interfaccia stabile
-- Next-hop-self dove necessario
+## eBGP (AS100 <-> AS200)
+- Peering: R103 (AS100) <-> R201 (AS200) su 10.0.31.0/30
+  - R103: 10.0.31.1
+  - R201: 10.0.31.2
 
-### Verifiche
-- BGP summary: Established
-- Annunci interni propagati
+## AS200 (no IGP)
+- R202: default route -> R201 (10.0.202.2)
+- GW200: default route -> R201 (10.0.200.1)
+- R201: static route verso:
+  - 10.202.3.0/24 via 10.0.202.1
+  - 160.80.200.0/24 via 10.0.200.2
+  - (se necessario) 10.200.1.0/24 e 10.200.2.0/24 via 10.0.200.2
 
-## 4. eBGP (AS100 <-> AS200)
-### Peering
-- R103 (AS100) <-> R201 (AS200) sul link inter-AS
+## Annunci BGP minimi
+- AS200 annuncia: 160.80.200.0/24 (DMZ)
+- AS100 annuncia: (se richiesto) i prefissi customer WAN e loopback (in base al vostro modello di reachability)
 
-### Annunci
-- AS200 annuncia DMZ (prefisso pubblico AS200)
-- AS100 annuncia prefissi pubblici rilevanti (inclusi IP pubblici customer se richiesto)
-
-### Verifiche
-- Ping/traceroute verso DMZ da AS100
-- Tabella BGP contiene prefissi attesi
-
-## 5. Static routing (AS200 interno)
-- R202: default verso R201
-- GW200: default verso R201
-- R201: static per DMZ via GW200 e LAN3 via R202 (e altre reti interne se applicabile)
-
-## 6. Evidenze richieste (salvare in `evidence/`)
+## Evidenze da salvare in `evidence/`
 - `show ip ospf neighbor`
 - `show ip route`
 - `show ip bgp summary`
 - `show ip bgp`
-- ping/traceroute significativi
+- ping/traceroute verso DMZ e verso reti enterprise

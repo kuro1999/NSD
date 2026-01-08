@@ -1,51 +1,70 @@
 pools:
-  # Prefissi "pubblici" da laboratorio (documentation ranges)
-  as100_public: 1.0.0.0/8
-  as200_public: 203.0.113.0/24
+  # Nota: qui usate prefissi "reali" (1.0.0.0/8 e 2.0.0.0/8). In lab va bene, ma non è un documentation range.
+  as100_public_pool: 1.0.0.0/8
+  as200_public_pool: 2.0.0.0/8
 
-  # Pool privato da cui ritagliare TUTTI i /30 dei link router-router
-  p2p_private_pool: 10.255.0.0/16
+  # Pool privato per /30 p2p (come da topologia)
+  p2p_pool: 10.0.0.0/16
 
 segments:
-  # Enterprise
-  LAN1:
+  SITE1_LAN:
     cidr: 192.168.10.0/24
     gw: 192.168.10.1
-    notes: "AV1-AV3 + iFW(eth0) + eFW(eth1 via br2)"
-
-  LAN2:
-    cidr: 192.168.20.0/24
-    gw: 192.168.20.1
-    notes: "LAN-client + iFW(eth1 via br3)"
-
-  LAN3:
-    cidr: 192.168.30.0/24
-    gw: 192.168.30.1
-    notes: "central-node + R202(eth1)"
-
-  DMZ:
-    cidr: 203.0.113.0/24
-    gw: 203.0.113.1
-    notes: "DMZ deve stare nel pool pubblico AS200 (dns-server + GW200 eth1 + eFW eth0 via br1)"
-
-  # Customer
-  SITE1_LAN:
-    cidr: 192.168.40.0/24
-    gw: 192.168.40.1
-    notes: "client-A1 dietro CE1 (LAN su CE1:eth0)"
+    notes: "CE1 LAN (client-A1)."
 
   SITE2_LAN:
-    cidr: 192.168.50.0/24
-    gw: 192.168.50.1
-    notes: "client-B1/B2 dietro CE2; IP su macsec0 (LAN su CE2:eth0 -> Sw1)"
+    cidr: 192.168.20.0/24
+    gw: 192.168.20.1
+    notes: "CE2 LAN (client-B1/B2). IP da mettere su macsec0 quando abilitate MACsec."
+
+  LAN1:
+    cidr: 10.200.1.0/24
+    gw: 10.200.1.1
+    notes: "LAN1 (AV1-AV3) dietro eFW; iFW ha IP in LAN1."
+
+  LAN2:
+    cidr: 10.200.2.0/24
+    gw: 10.200.2.1
+    notes: "LAN2 (LAN-client) dietro iFW."
+
+  LAN3:
+    cidr: 10.202.3.0/24
+    gw: 10.202.3.1
+    notes: "LAN3 (central-node) dietro R202."
+
+  DMZ:
+    cidr: 160.80.200.0/24
+    gw: 160.80.200.1
+    notes: "DMZ (DNS-server + eFW outside + GW200)."
+
+links_p2p:
+  # AS100 core
+  R101_R102: 10.0.12.0/30
+  R101_R103: 10.0.13.0/30
+  R102_R103: 10.0.23.0/30
+
+  # Inter-AS
+  R103_R201: 10.0.31.0/30
+
+  # AS200 internal
+  R201_GW200: 10.0.200.0/30
+  R201_R202: 10.0.202.0/30
 
 wan_links:
-  # Link CE1<->R101: IP pubblici dal pool AS100 (obbligo traccia)
   CE1_R101_WAN:
-    cidr: 198.51.100.0/30
-    notes: "R101:eth0 <-> CE1:eth1 (public AS100)"
+    cidr: 1.0.101.0/30
+    notes: "WAN Site1: R101:eth0 <-> CE1:eth1"
 
-  # Link CE2<->R102: IP pubblici dal pool AS100 (obbligo traccia)
   CE2_R102_WAN:
-    cidr: 198.51.100.4/30
-    notes: "R102:eth1 <-> CE2:eth1 (public AS100)"
+    cidr: 10.0.102.0/30
+    notes: "WAN Site2: R102:eth1 <-> CE2:eth1 (ATTENZIONE: è privato; la traccia potrebbe richiedere IP pubblici AS100)."
+
+loopbacks:
+  R101: 1.255.0.1/32
+  R102: 1.255.0.2/32
+  R103: 1.255.0.3/32
+  R201: 2.255.0.1/32
+
+compliance_notes:
+  - "DMZ: se la traccia richiede che la DMZ sia nel pool AS200, allora conviene spostare DMZ dentro 2.0.0.0/8 (es. 2.200.200.0/24) oppure dichiarare formalmente che 160.80.200.0/24 è un prefisso assegnato ad AS200."
+  - "CE2_R102_WAN: se la traccia richiede IP pubblici dal pool AS100, cambiare 10.0.102.0/30 in 1.0.102.0/30."

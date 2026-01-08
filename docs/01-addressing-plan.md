@@ -1,67 +1,64 @@
-# Addressing plan
+# Addressing plan (finale)
 
-## 1. Pools
-| Uso | Prefisso | Note |
-|---|---|---|
-| AS100 public pool | <AS100_PUBLIC_POOL>/24 | usato per IP pubblici CE1/CE2 e indirizzi pubblici dove necessario |
-| AS200 public pool | <AS200_PUBLIC_POOL>/24 | usato per DMZ (obbligatorio) |
-| P2P private pool | <P2P_PRIVATE_POOL>/16 | suddiviso in /30 per link router-router |
-| LAN private pools | RFC1918 /24 | LAN1, LAN2, LAN3, Site1 LAN, Site2 LAN |
-
-## 2. LAN e segmenti principali
-| Segmento | Prefisso | Gateway | Note |
+## 1) Segmenti /24
+| Segmento | CIDR | Gateway | Note |
 |---|---|---|---|
-| LAN1 (AV1-3, eFW, iFW) | <LAN1>/24 | <LAN1_GW> | AV solo verso central-node (via policy FW) |
-| LAN2 (LAN-client, iFW) | <LAN2>/24 | <LAN2_GW> | traffico verso esterno solo stateful |
-| LAN3 (central-node, R202) | <LAN3>/24 | <LAN3_GW> | central-node comunica con AV via VPN |
-| DMZ (dns-server) | <DMZ_AS200>/24 | <DMZ_GW> | range AS200 |
-| Site1 LAN (client-A1) | <SITE1_LAN>/24 | <CE1_LAN_GW> | |
-| Site2 LAN (client-B1/B2 su MACsec) | <SITE2_LAN>/24 | <CE2_LAN_GW> | IP su macsec0 |
+| Site1 LAN | 192.168.10.0/24 | 192.168.10.1 (CE1) | client-A1 |
+| Site2 LAN | 192.168.20.0/24 | 192.168.20.1 (CE2) | MACsec su macsec0 |
+| LAN1 | 10.200.1.0/24 | 10.200.1.1 (eFW) | AV1-3 + iFW |
+| LAN2 | 10.200.2.0/24 | 10.200.2.1 (iFW) | LAN-client |
+| LAN3 | 10.202.3.0/24 | 10.202.3.1 (R202) | central-node |
+| DMZ | 160.80.200.0/24 | 160.80.200.1 (GW200) | DNS-server + eFW outside |
 
-## 3. Link P2P (/30 privati)
-| Link | Network /30 | Lato A (IP) | Lato B (IP) |
+## 2) Link /30
+| Link | CIDR | Lato A | Lato B |
 |---|---|---|---|
-| R101—R102 | <P2P_1>/30 | R101:<IP> | R102:<IP> |
-| R102—R103 | <P2P_2>/30 | R102:<IP> | R103:<IP> |
-| R103—R201 (eBGP) | <P2P_3>/30 | R103:<IP> | R201:<IP> |
-| R201—R202 | <P2P_4>/30 | R201:<IP> | R202:<IP> |
-| R201—GW200 | <P2P_5>/30 | R201:<IP> | GW200:<IP> |
-| ... | ... | ... | ... |
+| R101–R102 | 10.0.12.0/30 | R101:10.0.12.1 | R102:10.0.12.2 |
+| R101–R103 | 10.0.13.0/30 | R101:10.0.13.1 | R103:10.0.13.2 |
+| R102–R103 | 10.0.23.0/30 | R103:10.0.23.1 | R102:10.0.23.2 |
+| R103–R201 | 10.0.31.0/30 | R103:10.0.31.1 | R201:10.0.31.2 |
+| R201–GW200 | 10.0.200.0/30 | R201:10.0.200.1 | GW200:10.0.200.2 |
+| R201–R202 | 10.0.202.0/30 | R202:10.0.202.1 | R201:10.0.202.2 |
+| CE1–R101 | 1.0.101.0/30 | R101:1.0.101.1 | CE1:1.0.101.2 |
+| CE2–R102 | 10.0.102.0/30 | R102:10.0.102.1 | CE2:10.0.102.2 |
 
-## 4. Interfacce per nodo (mapping)
-> Compilare esattamente secondo la topologia GNS3 (eth0/eth1/…)
+## 3) Loopback /32
+| Router | Loopback |
+|---|---|
+| R101 | 1.255.0.1/32 |
+| R102 | 1.255.0.2/32 |
+| R103 | 1.255.0.3/32 |
+| R201 | 2.255.0.1/32 |
 
-### R101
-- eth0 -> R102 : <IP>/<MASK>
-- eth1 -> CE1 (WAN) : <IP>/<MASK>
-- lo -> <LOOPBACK>/32 (se usata)
+## 4) IP per host (LAN)
+### Site1 LAN
+- CE1 (LAN / inside): 192.168.10.1/24
+- client-A1: 192.168.10.10/24 (GW 192.168.10.1)
 
-### R102
-- eth0 -> R101 : <IP>/<MASK>
-- eth1 -> R103 : <IP>/<MASK>
-- lo -> <LOOPBACK>/32
+### Site2 LAN
+- CE2 (LAN / inside): 192.168.20.1/24 (da assegnare a macsec0 in fase MACsec)
+- client-B1: 192.168.20.10/24 (GW 192.168.20.1)
+- client-B2: 192.168.20.11/24 (GW 192.168.20.1)
 
-### R103
-- eth0 -> R102 : <IP>/<MASK>
-- eth1 -> R201 : <IP>/<MASK>
-- eth2 -> CE2 (WAN) : <IP>/<MASK>
-- lo -> <LOOPBACK>/32
+### LAN1
+- eFW (LAN1): 10.200.1.1/24
+- iFW (LAN1): 10.200.1.2/24
+- AV1: 10.200.1.11/24
+- AV2: 10.200.1.12/24
+- AV3: 10.200.1.13/24
 
-### R201
-- eth0 -> R103 : <IP>/<MASK>
-- eth1 -> R202 : <IP>/<MASK>
-- eth2 -> GW200 : <IP>/<MASK>
+### LAN2
+- iFW (LAN2): 10.200.2.1/24
+- LAN-client: 10.200.2.10/24 (GW 10.200.2.1)
 
-### R202
-- eth0 -> R201 : <IP>/<MASK>
-- eth1 -> LAN3 : <LAN3_GW>/<24>
-- Default route -> R201
+### LAN3
+- R202 (LAN3): 10.202.3.1/24
+- central-node: 10.202.3.10/24 (GW 10.202.3.1)
 
-### GW200
-- eth0 -> R201 : <IP>/<MASK>
-- eth1 -> DMZ : <DMZ_GW>/<24>
-- eth2 -> eFW (outside) : <IP>/<MASK> (se previsto)
-- Default route -> R201
+### DMZ
+- GW200 (DMZ): 160.80.200.1/24
+- eFW (DMZ/outside): 160.80.200.2/24
+- DNS-server: 160.80.200.3/24 (GW 160.80.200.1)
 
-### eFW / iFW / CE1 / CE2 / dns-server / central-node / AV1-3 / client-*
-Compilare analogo mapping.
+## 5) Mapping interfacce (da inventory/links.yml)
+Il mapping fisico/logico delle porte è congelato in `links.yml`.

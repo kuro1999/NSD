@@ -1,40 +1,16 @@
 # DNS authoritative + DNSSEC + Web (DMZ)
 
-## 1. Obiettivo
-- Zona authoritative: `nsdcourse.xyz`
-- Record `www.nsdcourse.xyz` -> A verso web server (Apache)
-- DNSSEC: firma della zona (KSK+ZSK), senza necessità di DS nel parent
+## IP e host
+- DNS-server: 160.80.200.3/24 (GW 160.80.200.1)
+- Dominio: nsdcourse.xyz
+- www.nsdcourse.xyz -> 160.80.200.3 (Apache sul DNS-server)
 
-## 2. DNS (BIND9)
-### File di configurazione
-- named.conf (include zona)
-- file zona: `db.nsdcourse.xyz` (o equivalente)
-- Abilitare recursion: NO (authoritative only), salvo necessità di lab
+## Requisiti
+- Authoritative DNS per nsdcourse.xyz
+- DNSSEC abilitato (zona firmata)
+- Web raggiungibile via www.nsdcourse.xyz
 
-### Record minimi richiesti
-- SOA
-- NS
-- A per ns (se necessario)
-- A per www
-
-## 3. DNSSEC
-### Chiavi
-- ZSK: algoritmo e dimensione
-- KSK: algoritmo e dimensione
-
-### Firma zona
-- Generazione `.signed`
-- Configurazione named per servire la zona firmata
-
-## 4. Web server (Apache2)
-- VirtualHost o pagina default che risponde su `http://www.nsdcourse.xyz`
-- Contenuto pagina: hostname + timestamp (utile per demo)
-
-## 5. Test
-- `dig @<DNS_SERVER_IP> nsdcourse.xyz SOA`
-- `dig +dnssec @<DNS_SERVER_IP> www.nsdcourse.xyz A` (verificare DNSKEY/RRSIG)
-- `curl http://www.nsdcourse.xyz` da LAN-client
-
-## 6. Evidenze
-- Output dig/curl in `evidence/`
-- Estratto config bind+apache in `configs/`
+## Test
+- `dig @160.80.200.3 nsdcourse.xyz SOA`
+- `dig +dnssec @160.80.200.3 www.nsdcourse.xyz A`
+- `curl http://www.nsdcourse.xyz` da LAN-client (10.200.2.10)

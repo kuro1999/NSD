@@ -1,25 +1,22 @@
 # Scope e assunzioni
 
 ## Scope
-Implementazione completa del progetto in GNS3:
+Implementazione in GNS3 di:
 - AS100: OSPF interno + iBGP tra border + eBGP con AS200
 - AS200: R201 BGP speaker; R202 e GW200 non-BGP con default verso R201
-- DMZ con DNS authoritative DNSSEC per `nsdcourse.xyz` e Apache su `www.nsdcourse.xyz`
-- Firewalling secondo policy
-- VPN IPsec enterprise (R202 <-> eFW) per connettività LAN3 <-> LAN1
-- VPN customer IPsec (CE1 <-> CE2)
-- MACsec con MKA nella LAN di Site2 (client-B1/B2 e CE2)
-- Sandbox AV con 3 runner + central-node
+- Enterprise Net: DMZ con DNS authoritative DNSSEC e web su `www.nsdcourse.xyz`
+- Firewalling secondo policy di progetto
+- VPN IPsec enterprise: R202 <-> eFW (LAN3 <-> LAN1)
+- VPN customer: CE1 <-> CE2 (Site1 LAN <-> Site2 LAN)
+- MACsec con MKA in Site2 LAN (CE2, client-B1, client-B2)
+- Sandbox AV: central-node + AV1/AV2/AV3 con ripristino via snapshot
 
-## Assunzioni implementative (da confermare e mantenere coerenti)
-- OS: Debian/Ubuntu-like su nodi Linux; FRR per routing (se applicabile)
-- IPsec: strongSwan (IKEv2 + PSK)
-- Firewall: iptables/nftables (specificare cosa si usa)
-- DNS: BIND9
-- AV runners: ripristino via snapshot GNS3 dopo ogni scan.
+## Convenzioni
+- Link router-router: /30 su pool privato 10.0.0.0/16
+- Loopback router per routing/BGP: /32
+- LAN enterprise e customer: /24
+- Snapshot AV runners: ripristino via snapshot GNS3 dopo ogni scan
 
-## Convezioni
-- Tutti i link router-router p2p: /30 privati
-- Prefissi pubblici: pool dedicati per AS100 e AS200 (documentazione/riservati)
-- DMZ: prefisso preso dal pool AS200
-- CE1 e CE2: IP pubblici dal pool AS100 (solo sulle WAN/peering)
+## Note di compliance (rispetto traccia)
+- DMZ attuale: 160.80.200.0/24. Se richiesto "DMZ nel pool AS200", spostare DMZ in 2.0.0.0/8 o dichiarare 160.80.200.0/24 come prefisso assegnato ad AS200.
+- CE2 WAN attuale: 10.0.102.0/30 (privato). Se richiesto IP pubblico AS100 per CE2, cambiare in 1.0.102.0/30.
