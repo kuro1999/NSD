@@ -1,0 +1,418 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p scripts routing
+
+# =========================
+# Phase A: addressing
+# =========================
+
+cat > scripts/r101.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+interface lo
+ no ip address
+ ip address 1.255.0.1/32
+exit
+interface eth0
+ no ip address
+ ip address 1.0.101.1/30
+exit
+interface eth1
+ no ip address
+ ip address 10.0.12.1/30
+exit
+interface eth2
+ no ip address
+ ip address 10.0.13.1/30
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > scripts/r102_wan10.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+interface lo
+ no ip address
+ ip address 1.255.0.2/32
+exit
+interface eth0
+ no ip address
+ ip address 10.0.12.2/30
+exit
+interface eth1
+ no ip address
+ ip address 10.0.102.1/30
+exit
+interface eth2
+ no ip address
+ ip address 10.0.23.1/30
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > scripts/r102_wan1.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+interface lo
+ no ip address
+ ip address 1.255.0.2/32
+exit
+interface eth0
+ no ip address
+ ip address 1.0.12.2/30
+exit
+interface eth1
+ no ip address
+ ip address 1.0.102.1/30
+exit
+interface eth2
+ no ip address
+ ip address 10.0.23.1/30
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > scripts/r103.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+interface lo
+ no ip address
+ ip address 1.255.0.3/32
+exit
+interface eth0
+ no ip address
+ ip address 10.0.23.2/30
+exit
+interface eth1
+ no ip address
+ ip address 10.0.13.2/30
+exit
+interface eth2
+ no ip address
+ ip address 10.0.31.1/30
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > scripts/r201.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+interface lo
+ no ip address
+ ip address 2.255.0.1/32
+exit
+interface eth0
+ no ip address
+ ip address 10.0.31.2/30
+exit
+interface eth1
+ no ip address
+ ip address 10.0.202.1/30
+exit
+interface eth2
+ no ip address
+ ip address 10.0.200.1/30
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > scripts/ce1.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# CE1: eth1=WAN verso R101, eth0=LAN verso client-A1
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth1 || true
+ip addr add 1.0.101.2/30 dev eth1
+ip link set eth1 up
+ip route replace default via 1.0.101.1
+
+ip addr flush dev eth0 || true
+ip addr add 192.168.10.1/24 dev eth0
+ip link set eth0 up
+EOF
+
+cat > scripts/client-a1.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 192.168.10.10/24 dev eth0
+ip link set eth0 up
+ip route replace default via 192.168.10.1
+EOF
+
+cat > scripts/ce2_wan10.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# CE2: eth1=WAN verso R102, eth0=LAN verso sw1
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth1 || true
+ip addr add 1.0.102.2/30 dev eth1
+ip link set eth1 up
+ip route replace default via 1.0.102.1
+
+ip addr flush dev eth0 || true
+ip addr add 192.168.20.1/24 dev eth0
+ip link set eth0 up
+EOF
+
+cat > scripts/ce2_wan1.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# CE2: eth1=WAN verso R102, eth0=LAN verso sw1
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth1 || true
+ip addr add 1.0.102.2/30 dev eth1
+ip link set eth1 up
+ip route replace default via 1.0.102.1
+
+ip addr flush dev eth0 || true
+ip addr add 192.168.20.1/24 dev eth0
+ip link set eth0 up
+EOF
+
+cat > scripts/client-b1.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 192.168.20.10/24 dev eth0
+ip link set eth0 up
+ip route replace default via 192.168.20.1
+EOF
+
+cat > scripts/client-b2.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 192.168.20.11/24 dev eth0
+ip link set eth0 up
+ip route replace default via 192.168.20.1
+EOF
+
+cat > scripts/r202.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# R202 non è BGP speaker: default route verso R201
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth0 || true
+ip addr add 10.0.202.2/30 dev eth0
+ip link set eth0 up
+ip route replace default via 10.0.202.1
+
+ip addr flush dev eth1 || true
+ip addr add 10.202.3.1/24 dev eth1
+ip link set eth1 up
+EOF
+
+cat > scripts/central-node.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 10.202.3.10/24 dev eth0
+ip link set eth0 up
+ip route replace default via 10.202.3.1
+EOF
+
+cat > scripts/gw200.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# GW200 non è BGP speaker: default route verso R201
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth0 || true
+ip addr add 10.0.200.2/30 dev eth0
+ip link set eth0 up
+ip route replace default via 10.0.200.1
+
+ip addr flush dev eth1 || true
+ip addr add 2.80.200.1/24 dev eth1
+ip link set eth1 up
+
+# Rotte verso Enterprise dietro eFW (DMZ side eFW = 160.80.200.2)
+ip route replace 10.200.1.0/24 via 2.80.200.2
+ip route replace 10.200.2.0/24 via 2.80.200.2
+EOF
+
+cat > scripts/efw.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth0 || true
+ip addr add 2.80.200.2/24 dev eth0
+ip link set eth0 up
+
+ip addr flush dev eth1 || true
+ip addr add 10.200.1.1/24 dev eth1
+ip link set eth1 up
+
+ip route replace default via 2.80.200.1
+ip route replace 10.200.2.0/24 via 10.200.1.2
+EOF
+
+cat > scripts/ifw.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+sysctl -w net.ipv4.ip_forward=1
+ip addr flush dev eth0 || true
+ip addr add 10.200.1.2/24 dev eth0
+ip link set eth0 up
+
+ip addr flush dev eth1 || true
+ip addr add 10.200.2.1/24 dev eth1
+ip link set eth1 up
+
+ip route replace default via 10.200.1.1
+EOF
+
+cat > scripts/dns.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 2.80.200.3/24 dev eth0
+ip link set eth0 up
+ip route replace default via 2.80.200.2
+EOF
+
+cat > scripts/av1.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 10.200.1.11/24 dev eth0
+ip link set eth0 up
+ip route replace default via 10.200.1.2
+EOF
+
+cat > scripts/av2.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 10.200.1.12/24 dev eth0
+ip link set eth0 up
+ip route replace default via 10.200.1.2
+EOF
+
+cat > scripts/av3.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 10.200.1.13/24 dev eth0
+ip link set eth0 up
+ip route replace default via 10.200.1.2
+EOF
+
+cat > scripts/lan-client.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+ip addr flush dev eth0 || true
+ip addr add 10.200.2.10/24 dev eth0
+ip link set eth0 up
+ip route replace default via 10.200.2.1
+EOF
+
+# =========================
+# Step 3: OSPF inside AS100
+# =========================
+
+cat > routing/ospf_r101.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+router ospf
+ ospf router-id 1.255.0.1
+ passive-interface default
+ no passive-interface eth1
+ no passive-interface eth2
+exit
+interface eth1
+ ip ospf area 0
+ ip ospf network point-to-point
+exit
+interface eth2
+ ip ospf area 0
+ ip ospf network point-to-point
+exit
+interface lo
+ ip ospf area 0
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > routing/ospf_r102.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+router ospf
+ ospf router-id 1.255.0.2
+ passive-interface default
+ no passive-interface eth0
+ no passive-interface eth2
+exit
+interface eth0
+ ip ospf area 0
+ ip ospf network point-to-point
+exit
+interface eth2
+ ip ospf area 0
+ ip ospf network point-to-point
+exit
+interface lo
+ ip ospf area 0
+exit
+end
+write memory
+VEOF
+EOF
+
+cat > routing/ospf_r103.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+vtysh <<'VEOF'
+conf t
+router ospf
+ ospf router-id 1.255.0.3
+ passive-interface default
+ no passive-interface eth0
+ no passive-interface eth1
+exit
+interface eth0
+ ip ospf area 0
+ ip ospf network point-to-point
+exit
+interface eth1
+ ip ospf area 0
+ ip ospf network point-to-point
+exit
+interface lo
+ ip ospf area 0
+exit
+end
+write memory
+VEOF
+EOF
+
+chmod +x scripts/*.sh routing/*.sh
+echo "OK: creati scripts/ e routing/. Ora esegui gli script dentro i nodi GNS3."
+
