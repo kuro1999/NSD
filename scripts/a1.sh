@@ -1,0 +1,4 @@
+ip addr add 192.168.10.10/24 dev eth0
+ip link set eth0 up
+ip route replace default via 192.168.10.1
+
