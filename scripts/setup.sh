@@ -38,7 +38,7 @@ VEOF
 EOF
 
 
-cat > setup/r102_wan1.sh <<'EOF'
+cat > setup/r102.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 vtysh <<'VEOF'
@@ -141,7 +141,7 @@ ip route replace default via 192.168.10.1
 EOF
 
 
-cat > setup/ce2_wan1.sh <<'EOF'
+cat > setup/ce2.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 # CE2: eth1=WAN verso R102, eth0=LAN verso sw1
