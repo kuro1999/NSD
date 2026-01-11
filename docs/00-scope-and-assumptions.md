@@ -19,4 +19,4 @@ Implementazione in GNS3 di:
 
 ## Note di compliance (rispetto traccia)
 - DMZ attuale: 160.80.200.0/24. Se richiesto "DMZ nel pool AS200", spostare DMZ in 2.0.0.0/8 o dichiarare 160.80.200.0/24 come prefisso assegnato ad AS200.
-- CE2 WAN attuale: 10.0.102.0/30 (privato). Se richiesto IP pubblico AS100 per CE2, cambiare in 1.0.102.0/30.
+- CE2 WAN: 1.0.102.0/30 (pubblico, pool AS100).

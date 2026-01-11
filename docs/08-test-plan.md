@@ -31,7 +31,8 @@
 
 ## 6. VPN customer
 - ping client-A1 <-> client-B1/B2 (IPsec CE1-CE2)
-- ipsec statusall
+- swanctl --list-sas (IKE_SA ESTABLISHED, CHILD_SA INSTALLED + contatori bytes/packets)
+- (fallback) ipsec statusall
 
 ## 7. AV sandbox
 - esecuzione completa: invio file -> scansioni -> report
