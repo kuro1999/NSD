@@ -5,7 +5,7 @@ set -euo pipefail
 #  - setup/   : script di addressing e host configuration
 #  - routing/ : script di routing (OSPF in AS100)
 
-mkdir -p setup routing macsec
+mkdir -p setup routing macsec dns
 
 
 # =========================
@@ -202,39 +202,55 @@ EOF
 cat > setup/gw200.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-# GW200 non è BGP speaker: default route verso R201
 sysctl -w net.ipv4.ip_forward=1
+
+# --- Verso Internet (R201) ---
 ip addr flush dev eth0 || true
 ip addr add 10.0.200.2/30 dev eth0
 ip link set eth0 up
-ip route replace default via 10.0.200.1
+# Rotta di default verso internet
+ip route replace default via 10.0.200.1 dev eth0
 
+# --- Verso DMZ (br1) ---
+# GW200 è il gateway della DMZ. 
+# [cite_start]Usiamo il pool AS200 come da traccia[cite: 177].
 ip addr flush dev eth1 || true
-# DMZ presa dal pool pubblico di AS200 (2.0.0.0/8) -> qui: 2.80.200.0/24
 ip addr add 2.80.200.1/24 dev eth1
 ip link set eth1 up
 
-# Rotte verso Enterprise dietro eFW (DMZ side eFW = 2.80.200.2)
-ip route replace 10.200.1.0/24 via 2.80.200.2
-ip route replace 10.200.2.0/24 via 2.80.200.2
+# --- Rotte verso l'interno (Enterprise) ---
+# Per raggiungere LAN1 (10.200.1.0) e LAN2 (10.200.2.0)
+# devo passare per eFW che ha IP .2 nella DMZ
+ip route replace 10.200.1.0/24 via 2.80.200.2 dev eth1
+ip route replace 10.200.2.0/24 via 2.80.200.2 dev eth1
 EOF
+
 
 cat > setup/efw.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 sysctl -w net.ipv4.ip_forward=1
+
+# --- Verso DMZ (br1) ---
 ip addr flush dev eth0 || true
-# eFW su DMZ (pool pubblico AS200): 2.80.200.2/24
 ip addr add 2.80.200.2/24 dev eth0
 ip link set eth0 up
 
+# --- Verso LAN1 (br2) ---
 ip addr flush dev eth1 || true
 ip addr add 10.200.1.1/24 dev eth1
 ip link set eth1 up
 
-ip route replace default via 2.80.200.1
-ip route replace 10.200.2.0/24 via 10.200.1.2
+# --- Routing ---
+# 1. Default Gateway: tutto ciò che non conosco va verso GW200
+ip route replace default via 2.80.200.1 dev eth0
+
+# 2. Verso LAN2 (LAN-client)
+# LAN2 è dietro iFW. Dobbiamo sapere l'IP di iFW nella LAN1.
+# Supponendo che iFW sia collegato a br2 e abbia IP 10.200.1.2:
+ip route replace 10.200.2.0/24 via 10.200.1.2 dev eth1
 EOF
+
 
 cat > setup/ifw.sh <<'EOF'
 #!/usr/bin/env bash
@@ -258,7 +274,7 @@ ip addr flush dev eth0 || true
 # DNS server in DMZ (pool pubblico AS200): 2.80.200.3/24
 ip addr add 2.80.200.3/24 dev eth0
 ip link set eth0 up
-ip route replace default via 2.80.200.2
+ip route replace default via 2.80.200.1
 EOF
 
 cat > setup/av1.sh <<'EOF'
@@ -469,6 +485,9 @@ vtysh <<'VEOF'
 conf t
 ! (opzionale) rotta verso DMZ per poterla annunciare via BGP
 ip route 2.80.200.0/24 10.0.200.2
+ip route 10.200.1.0/24 10.0.200.2
+ip route 10.200.2.0/24 10.0.200.2
+
 !
 router bgp 200
  bgp router-id 2.255.0.1
@@ -485,6 +504,147 @@ write memory
 VEOF
 
 EOF
+
+
+
+
+# =========================
+# Phase B: IPsec Setup (VPN Site 1 <-> Site 2)
+# =========================
+
+# Crea la cartella locale per salvare i file
+mkdir -p ipsec
+
+# --- Configurazione per CE1 (Initiator) ---
+cat > ipsec/ce1.sh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+# Assicuriamo che la directory di configurazione esista
+mkdir -p /etc/swanctl/conf.d
+
+echo ">>> Configurazione IPsec su CE1..."
+
+cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
+connections {
+  ce1-ce2 {
+    local_addrs  = 1.0.101.2
+    remote_addrs = 1.0.102.2
+
+    version = 2
+    mobike = no
+
+    local {
+      auth = psk
+      id = ce1
+    }
+    remote {
+      auth = psk
+      id = ce2
+    }
+
+    proposals = aes128-sha256-modp2048
+
+    children {
+      lan-lan {
+        local_ts  = 192.168.10.0/24
+        remote_ts = 192.168.20.0/24
+        esp_proposals = aes128-sha256-modp2048
+      }
+    }
+  }
+}
+
+secrets {
+  ike-psk {
+    id-1 = ce1
+    id-2 = ce2
+    secret = "nsd-ce1-ce2-psk-2026"
+  }
+}
+CONF
+
+# Avvio/Riavvio servizi
+echo ">>> Riavvio ipsec..."
+service ipsec restart || ipsec restart
+
+# Caricamento configurazioni
+echo ">>> Caricamento credenziali e connessioni..."
+swanctl --load-creds
+swanctl --load-conns
+
+# Avvio del tunnel (CE1 fa da initiator)
+echo ">>> Avvio connessione..."
+swanctl --initiate --child lan-lan
+
+# Verifica finale
+echo ">>> Stato Tunnel:"
+swanctl --list-sas
+EOF
+
+
+# --- Configurazione per CE2 (Responder) ---
+cat > ipsec/ce2.sh <<'EOF'
+#!//bin/bash
+set -euo pipefail
+
+mkdir -p /etc/swanctl/conf.d
+
+echo ">>> Configurazione IPsec su CE2..."
+
+cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
+connections {
+  ce2-ce1 {
+    local_addrs  = 1.0.102.2
+    remote_addrs = 1.0.101.2
+
+    version = 2
+    mobike = no
+
+    local {
+      auth = psk
+      id = ce2
+    }
+    remote {
+      auth = psk
+      id = ce1
+    }
+
+    proposals = aes128-sha256-modp2048
+
+    children {
+      lan-lan {
+        local_ts  = 192.168.20.0/24
+        remote_ts = 192.168.10.0/24
+        esp_proposals = aes128-sha256-modp2048
+      }
+    }
+  }
+}
+
+secrets {
+  ike-psk {
+    id-1 = ce2
+    id-2 = ce1
+    secret = "nsd-ce1-ce2-psk-2026"
+  }
+}
+CONF
+
+# Avvio/Riavvio servizi
+echo ">>> Riavvio ipsec..."
+service ipsec restart || ipsec restart
+
+# Caricamento configurazioni
+echo ">>> Caricamento credenziali e connessioni..."
+swanctl --load-creds
+swanctl --load-conns
+
+# Niente initiate qui, CE2 aspetta la connessione
+echo ">>> Stato Tunnel (in attesa):"
+swanctl --list-sas || true
+EOF
+
 
 # =========================
 # Phase C: MACsec (MKA) - Site 2 LAN
@@ -595,6 +755,127 @@ ip route replace default via $GW dev $MACSEC_IF
 EOF
 
 
+# =========================
+# Phase D: DNSSEC + HTTP Setup
+# =========================
+
+# =========================
+# Phase D: DNSSEC + HTTP Setup (Configuration Files Only)
+# =========================
+
+# 1. Opzioni di BIND (Slide 115)
+cat > dns/named.conf.options <<EOF
+options {
+    directory "/var/cache/bind";
+    recursion no;
+    allow-query { any; };
+    listen-on-v6 { any; };
+    dnssec-validation auto;
+};
+EOF
+
+# 2. Definizione della Zona (Slide 124 - Versione finale che punta al .signed)
+cat > dns/named.conf.local <<EOF
+zone "nsdcourse.xyz" {
+    type master;
+    file "/etc/bind/db.nsdcourse.xyz.signed";
+};
+EOF
+
+# 3. File di Zona non firmato (Slide 116)
+cat > dns/db.nsdcourse.xyz <<EOF
+\$TTL 3h
+@   IN  SOA ns.nsdcourse.xyz. admin.nsdcourse.xyz. (
+        1       ; Serial
+        3h      ; Refresh
+        1h      ; Retry
+        1w      ; Expire
+        1h )    ; Negative Cache TTL
+
+@       IN  NS  ns.nsdcourse.xyz.
+@       IN  A   2.80.200.3
+ns      IN  A   2.80.200.3
+www     IN  A   2.80.200.3
+EOF
+
+# 4. Crea il file "promemoria" con i comandi da lanciare manualmente
+cat > dns/config.txt <<'EOF'
+# --- COMANDI DA LANCIARE MANUALMENTE NEL NODO DNS-SERVER ---
+
+# 1. Vai nella cartella
+cd /etc/bind
+
+# 2. Genera le chiavi (Slide 117-120)
+dnssec-keygen -a ECDSAP384SHA384 -n ZONE nsdcourse.xyz
+dnssec-keygen -f KSK -a ECDSAP384SHA384 -n ZONE nsdcourse.xyz
+
+# 3. Includi le chiavi nel file di zona (Slide 121)
+for key in Knsdcourse.xyz*.key; do echo "\$INCLUDE $key" >> db.nsdcourse.xyz; done
+
+# 4. Firma la zona (crea il file .signed) (Slide 122)
+dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -o nsdcourse.xyz -t db.nsdcourse.xyz
+
+# 5. Correggi i permessi (IMPORTANTE)
+chown -R bind:bind /etc/bind
+
+# 6. Avvia tutto
+service apache2 start
+service named restart
+EOF
+
+
+# 5. Script di pulizia/reset (da lanciare SOLO se devi rifare tutto da zero)
+cat > dns/clean_dns.sh <<'EOF'
+#!/bin/bash
+set -e
+
+echo "--- INIZIO PULIZIA CONFIGURAZIONE DNSSEC ---"
+
+# 1. Arresto del servizio (gestione errore se gia' fermo)
+service named stop || true
+
+# 2. Rimozione file chiavi, firme e journal residui
+rm -f /etc/bind/Knsdcourse.xyz*
+rm -f /etc/bind/db.nsdcourse.xyz.signed
+rm -f /etc/bind/dsset-nsdcourse.xyz*
+rm -f /etc/bind/*.jnl
+
+# 3. Ripristino configurazione zona (named.conf.local)
+cat > /etc/bind/named.conf.local <<CONF
+zone "nsdcourse.xyz" {
+    type master;
+    file "/etc/bind/db.nsdcourse.xyz";
+};
+CONF
+
+# 4. Ripristino file di zona originale (Clean State)
+cat > /etc/bind/db.nsdcourse.xyz <<ZONE
+$TTL 3h
+@   IN SOA  ns.nsdcourse.xyz. admin.nsdcourse.xyz. (
+            1       ; Serial
+            3h      ; Refresh
+            1h      ; Retry
+            1w      ; Expire
+            1h )    ; Negative caching TTL
+
+; Name Servers
+@       IN NS   ns.nsdcourse.xyz.
+
+; Record A
+@       IN A    2.80.200.3
+ns      IN A    2.80.200.3
+www     IN A    2.80.200.3
+ZONE
+
+# 5. Correzione permessi
+chown -R bind:bind /etc/bind
+
+# 6. Riavvio del servizio
+service named start
+
+echo "--- PULIZIA COMPLETATA ---"
+echo "Il server e' stato ripristinato allo stato iniziale (senza DNSSEC)."
+EOF
 #permessi
 
 chmod +x setup/*.sh routing/*.sh macsec/*.sh
