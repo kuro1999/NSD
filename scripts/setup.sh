@@ -283,7 +283,7 @@ set -euo pipefail
 ip addr flush dev eth0 || true
 ip addr add 10.200.1.11/24 dev eth0
 ip link set eth0 up
-ip route replace default via 10.200.1.2
+ip route replace default via 10.200.1.1
 EOF
 
 cat > setup/av2.sh <<'EOF'
@@ -292,7 +292,7 @@ set -euo pipefail
 ip addr flush dev eth0 || true
 ip addr add 10.200.1.12/24 dev eth0
 ip link set eth0 up
-ip route replace default via 10.200.1.2
+ip route replace default via 10.200.1.1
 EOF
 
 cat > setup/av3.sh <<'EOF'
@@ -301,7 +301,7 @@ set -euo pipefail
 ip addr flush dev eth0 || true
 ip addr add 10.200.1.13/24 dev eth0
 ip link set eth0 up
-ip route replace default via 10.200.1.2
+ip route replace default via 10.200.1.1
 EOF
 
 cat > setup/lan-client.sh <<'EOF'
@@ -311,6 +311,7 @@ ip addr flush dev eth0 || true
 ip addr add 10.200.2.10/24 dev eth0
 ip link set eth0 up
 ip route replace default via 10.200.2.1
+
 EOF
 
 # =========================
@@ -877,6 +878,183 @@ echo "--- PULIZIA COMPLETATA ---"
 echo "Il server e' stato ripristinato allo stato iniziale (senza DNSSEC)."
 EOF
 #permessi
+
+
+################
+# FIREWALL #####
+mkdir -p firewall
+
+cat > firewall/gw200.sh <<'EOF'
+#!/bin/bash
+set -e
+
+echo "--- Configurazione Firewall GW200 ---"
+
+# 1. Abilita il forwarding (Essenziale per fare da router)
+sysctl -w net.ipv4.ip_forward=1
+
+# 2. Pulizia Totale (Flush) delle regole precedenti
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -t mangle -F
+iptables -t mangle -X
+
+# 3. Imposta Policy di Default a DROP (Chiudi tutto)
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# ================================
+# CHAIN INPUT (Traffico diretto AL router GW200)
+# ================================
+# Accetta traffico di loopback (locale)
+iptables -A INPUT -i lo -j ACCEPT
+
+# Accetta traffico di connessioni già stabilite (Stateful)
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Accetta ICMP (Ping) dall'interno (eth1) per debug, ma non da Internet
+iptables -A INPUT -i eth1 -p icmp -j ACCEPT
+
+
+# ================================
+# CHAIN FORWARD (Traffico che ATTRAVERSA GW200)
+# ================================
+
+# REGOLA 0: Stateful Inspection (Lascia passare le risposte)
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# REGOLA 1: LAN-Client (LAN2) verso Internet
+# Requisito: "LAN-client can access the external network... if originated by it"
+# La LAN2 è 10.200.2.0/24. Arriva dall'interfaccia interna (eth1) ed esce su eth0.
+iptables -A FORWARD -i eth1 -o eth0 -s 10.200.2.0/24 -j ACCEPT
+
+# REGOLA 2: Accesso Esterno verso DNS/Web (DMZ)
+# Requisito: "Allow inbound connections for DNS requests... HTTP traffic"
+# Il DNS server è 2.80.200.3.
+iptables -A FORWARD -i eth0 -d 2.80.200.3 -p udp --dport 53 -j ACCEPT
+iptables -A FORWARD -i eth0 -d 2.80.200.3 -p tcp --dport 53 -j ACCEPT
+iptables -A FORWARD -i eth0 -d 2.80.200.3 -p tcp --dport 80 -j ACCEPT
+
+# REGOLA 3: Transito VPN verso eFW
+# Requisito: "IPSEC traffic to eFW"
+# eFW è 2.80.200.2. Deve ricevere i pacchetti VPN da R202.
+iptables -A FORWARD -i eth0 -d 2.80.200.2 -p udp --dport 500 -j ACCEPT
+iptables -A FORWARD -i eth0 -d 2.80.200.2 -p udp --dport 4500 -j ACCEPT
+iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT
+
+# REGOLA 4: Uscita generica per la DMZ (opzionale ma consigliata)
+# Permette ai server in DMZ (eFW, DNS) di scaricare aggiornamenti
+iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
+
+
+# ================================
+# NAT (Masquerade)
+# ================================
+# Tutto ciò che esce da eth0 viene mascherato con l'IP pubblico di GW200
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+echo "✅ Firewall GW200 Attivo!"
+iptables -L -v -n
+EOF
+
+
+
+cat > firewall/eFW.sh <<'EOF'
+#!/bin/bash
+echo "--- Configurazione Firewall eFW ---"
+
+# 1. Abilita il forwarding
+sysctl -w net.ipv4.ip_forward=1
+
+# 2. Pulizia regole
+iptables -F
+iptables -X
+iptables -t nat -F
+
+# 3. Policy di Default: DROP (Chiudi tutto)
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# ================================
+# CHAIN INPUT (Traffico diretto a eFW)
+# ================================
+# Accetta traffico locale
+iptables -A INPUT -i lo -j ACCEPT
+# Accetta connessioni già stabilite (es. aggiornamenti del firewall stesso)
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# REGOLA VPN: Accetta traffico IPsec in ingresso (da Internet/GW200)
+# Serve per far salire il tunnel con R202
+iptables -A INPUT -p udp --dport 500 -j ACCEPT
+iptables -A INPUT -p udp --dport 4500 -j ACCEPT
+iptables -A INPUT -p esp -j ACCEPT
+
+# (Opzionale) SSH/Ping dalla DMZ (management)
+iptables -A INPUT -s 2.80.200.0/24 -p icmp -j ACCEPT
+
+
+# ================================
+# CHAIN FORWARD (Traffico che passa attraverso)
+# ================================
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# REGOLA 1: LAN-Client (LAN2) verso Internet
+# La LAN2 (10.200.2.0/24) arriva da eth1 (via iFW).
+# Deve poter andare ovunque.
+iptables -A FORWARD -i eth1 -o eth0 -s 10.200.2.0/24 -j ACCEPT
+
+# REGOLA 2: Antivirus (LAN1) verso Central Node (LAN3)
+# Gli AV (10.200.1.0/24) possono parlare SOLO con la rete del Central Node (10.202.3.0/24)
+# Questo traffico verrà poi cifrato dalla VPN (che configureremo dopo)
+iptables -A FORWARD -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
+
+# REGOLA 3: Central Node (LAN3) verso Antivirus (LAN1)
+# Permette al Central Node di iniziare connessioni verso gli AV
+iptables -A FORWARD -s 10.202.3.0/24 -d 10.200.1.0/24 -j ACCEPT
+
+# NOTA: Manca la regola per LAN1 -> Internet.
+# Quindi se un virus prova a uscire, cade nel DROP di default.
+
+echo "Firewall eFW configurato."
+iptables -L -v -n
+EOF
+
+
+
+cat > firewall/iFW.sh <<'EOF'
+#!/bin/bash
+echo "--- BLINDAGGIO iFW ---"
+
+# 1. Pulisci tutto (Tabula rasa)
+iptables -F
+iptables -X
+
+# 2. Imposta la Policy su DROP (Questo è il comando che uccide il Redirect)
+# Se il pacchetto non è autorizzato, viene buttato via SENZA risposta.
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# 3. Regola per connessioni già stabilite (fondamentale per le risposte)
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# 4. LAN-Client (LAN2): LUI PUÒ PASSARE
+iptables -A FORWARD -s 10.200.2.0/24 -j ACCEPT
+
+# 5. AV1 (LAN1): PUÒ ANDARE SOLO VERSO LA VPN (Central Node)
+# Nota: Non c'è nessuna regola per andare su Internet (10.0.200.1)
+iptables -A FORWARD -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
+
+# (Opzionale) Permetti ICMP in ingresso al firewall per debug locale
+iptables -A INPUT -p icmp -j ACCEPT
+
+echo "iFW ora è in modalità DROP."
+EOF
+###############################
 
 chmod +x setup/*.sh routing/*.sh macsec/*.sh
 echo "OK: creati setup/ e routing/. Ora esegui gli script dentro i nodi GNS3."
