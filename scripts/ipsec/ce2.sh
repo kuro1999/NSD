@@ -42,7 +42,7 @@ secrets {
     secret = "nsd-ce1-ce2-psk-2026"
   }
 }
-EOF
+CONF
 
 # Avvio/Riavvio servizi
 echo ">>> Riavvio ipsec..."
