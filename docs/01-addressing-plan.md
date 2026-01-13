@@ -8,7 +8,7 @@
 | LAN1      | 10.200.1.0/24   | 10.200.1.1 (eFW)     | AV1-3 + iFW              |
 | LAN2      | 10.200.2.0/24   | 10.200.2.1 (iFW)     | LAN-client               |
 | LAN3      | 10.202.3.0/24   | 10.202.3.1 (R202)    | central-node             |
-| DMZ       | 160.80.200.0/24 | 160.80.200.1 (GW200) | DNS-server + eFW outside |
+| DMZ       | 2.80.200.0/24   | 2.80.200.1 (GW200)   | DNS-server + eFW outside |
 
 ## 2) Link /30
 | Link       | CIDR          | Lato A          | Lato B           |
@@ -18,7 +18,7 @@
 | R102–R103  | 10.0.23.0/30  | R103:10.0.23.1  | R102:10.0.23.2   |
 | R103–R201  | 10.0.31.0/30  | R103:10.0.31.1  | R201:10.0.31.2   |
 | R201–GW200 | 10.0.200.0/30 | R201:10.0.200.1 | GW200:10.0.200.2 |
-| R201–R202  | 10.0.202.0/30 | R202:10.0.202.1 | R201:10.0.202.2  |
+| R201–R202  | 10.0.202.0/30 | R201:10.0.202.1 | R202:10.0.202.2  |
 | CE1–R101   | 1.0.101.0/30  | R101:1.0.101.1  | CE1:1.0.101.2    |
 | CE2–R102   | 1.0.102.0/30  | R102:1.0.102.1  | CE2:1.0.102.2    |
 
@@ -36,7 +36,7 @@
 - client-A1: 192.168.10.10/24 (GW 192.168.10.1)
 
 ### Site2 LAN
-- CE2 (LAN / inside): 192.168.20.1/24 (su macsec0; eth0 senza IP)
+- CE2 (LAN / inside): 192.168.20.1/24 (MACsec su macsec0 quando abilitato)
 - client-B1: 192.168.20.10/24 (GW 192.168.20.1)
 - client-B2: 192.168.20.11/24 (GW 192.168.20.1)
 
@@ -56,9 +56,9 @@
 - central-node: 10.202.3.10/24 (GW 10.202.3.1)
 
 ### DMZ
-- GW200 (DMZ): 160.80.200.1/24
-- eFW (DMZ/outside): 160.80.200.2/24
-- DNS-server: 160.80.200.3/24 (GW 160.80.200.1)
+- GW200 (DMZ): 2.80.200.1/24
+- eFW (DMZ/outside): 2.80.200.2/24
+- DNS-server: 2.80.200.3/24 (GW 2.80.200.1)
 
 ## 5) Mapping interfacce (da inventory/links.yml)
 Il mapping fisico/logico delle porte è congelato in `links.yml`.

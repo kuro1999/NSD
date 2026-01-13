@@ -22,8 +22,18 @@
 - AV: bloccato verso tutto tranne central-node
 
 ## 4. VPN enterprise
-- ping central-node <-> AV (via IPsec R202-eFW)
-- ipsec statusall
+- Obiettivo: reachability LAN3 (10.202.3.0/24) <-> LAN1 (10.200.1.0/24) tramite IPsec R202<->eFW
+- Preparazione (su R202 ed eFW):
+  - `service ipsec restart || service strongswan restart`
+  - `swanctl --load-creds && swanctl --load-conns`
+- Forzare avvio child (opzionale, su R202):
+  - `swanctl --initiate --child lan-lan`
+- Trigger traffico:
+  - da `central-node` (10.202.3.10): `ping -c 3 10.200.1.11` (AV1) oppure AV2/AV3
+- Verifica SA:
+  - su R202 ed eFW: `swanctl --list-sas`
+  - atteso: IKE_SA ESTABLISHED, CHILD_SA INSTALLED, contatori bytes/packets in crescita
+- (fallback) `ipsec statusall` se presente/utile per output sintetico
 
 ## 5. MACsec Site2
 - ping B1/B2 <-> CE2 su macsec0
