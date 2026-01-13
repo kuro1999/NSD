@@ -62,6 +62,13 @@ iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT
 # Permette ai server in DMZ (eFW, DNS) di scaricare aggiornamenti
 iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
 
+# Permetti il traffico di ritorno (Report) verso il Central Node
+
+iptables -A FORWARD -p tcp --dport 9000 -j ACCEPT
+iptables -A FORWARD -p tcp --dport 9001 -j ACCEPT
+iptables -A FORWARD -p tcp --dport 9002 -j ACCEPT
+iptables -A FORWARD -p tcp --dport 9003 -j ACCEPT
+
 
 # ================================
 # NAT (Masquerade)
@@ -69,5 +76,5 @@ iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
 # Tutto ciò che esce da eth0 viene mascherato con l'IP pubblico di GW200
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
-echo "✅ Firewall GW200 Attivo!"
+echo "Firewall GW200 Attivo!"
 iptables -L -v -n
