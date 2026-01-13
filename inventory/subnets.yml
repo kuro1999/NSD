@@ -33,9 +33,9 @@ segments:
     notes: "LAN3 (central-node) dietro R202."
 
   DMZ:
-    cidr: 160.80.200.0/24
-    gw: 160.80.200.1
-    notes: "DMZ (DNS-server + eFW outside + GW200)."
+    cidr: 2.80.200.0/24
+    gw: 2.80.200.1
+    notes: "DMZ (DNS-server + eFW outside + GW200) nel pool AS200."
 
 links_p2p:
   # AS100 core
@@ -66,5 +66,5 @@ loopbacks:
   R201: 2.255.0.1/32
 
 compliance_notes:
-  - "DMZ: se la traccia richiede che la DMZ sia nel pool AS200, allora conviene spostare DMZ dentro 2.0.0.0/8 (es. 2.200.200.0/24) oppure dichiarare formalmente che 160.80.200.0/24 è un prefisso assegnato ad AS200."
+  - "DMZ: configurata nel pool AS200 (2.80.200.0/24)."
   - "CE2_R102_WAN: se la traccia richiede IP pubblici dal pool AS100, cambiare 10.0.102.0/30 in 1.0.102.0/30."
