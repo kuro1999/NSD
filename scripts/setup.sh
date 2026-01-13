@@ -5,7 +5,7 @@ set -euo pipefail
 #  - setup/   : script di addressing e host configuration
 #  - routing/ : script di routing (OSPF in AS100)
 
-mkdir -p setup routing macsec dns ipsec firewall
+mkdir -p setup routing macsec dns ipsec firewall av
 
 
 # =========================
@@ -1095,6 +1095,13 @@ iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT
 # Permette ai server in DMZ (eFW, DNS) di scaricare aggiornamenti
 iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
 
+# Permetti il traffico di ritorno (Report) verso il Central Node
+
+iptables -A FORWARD -p tcp --dport 9000 -j ACCEPT
+iptables -A FORWARD -p tcp --dport 9001 -j ACCEPT
+iptables -A FORWARD -p tcp --dport 9002 -j ACCEPT
+iptables -A FORWARD -p tcp --dport 9003 -j ACCEPT
+
 
 # ================================
 # NAT (Masquerade)
@@ -1200,7 +1207,174 @@ iptables -A INPUT -p icmp -j ACCEPT
 
 echo "iFW ora è in modalità DROP."
 EOF
+
+
+
+##########################################
+
+cat > av/av1.sh <<'EOF'
+#!/bin/bash
+#av1.sh - ClamAV Listener Daemon
+CENTRAL_NODE_IP="10.202.3.10" # Sostituisci con IP vero del Central Node
+
+echo "[AV1] ClamAV Service avviato in ascolto sulla porta 9000..."
+
+while true; do
+    # 1. Pulizia preventiva (Clean State)
+    rm -f binary report.txt
+    
+    # 2. Attesa ricezione (Bloccante finché non arriva qualcosa)
+    nc -l -p 9000 > binary
+    echo "[AV1] File ricevuto. Avvio scansione..."
+
+    # 3. Scansione ClamAV
+    echo "--- REPORT AV1 (ClamAV) ---" > report.txt
+    date >> report.txt
+    clamscan binary >> report.txt
+
+    # 4. Invio Report al Central Node
+    echo "[AV1] Invio report..."
+    nc -w 2 $CENTRAL_NODE_IP 9001 < report.txt
+    
+    echo "[AV1] Ciclo completato. In attesa del prossimo file."
+    echo "----------------------------------------------------"
+done
+EOF
+
+
+
+cat > av/av2.sh << 'EOF'
+#!/bin/bash
+#av2.sh - YARA Listener Daemon
+CENTRAL_NODE_IP="10.202.3.10"
+
+echo "[AV2] YARA Service avviato in ascolto sulla porta 9000..."
+
+# Assicurati che la regola esista
+if [ ! -f /root/rule.yar ]; then
+    echo 'rule Malicious { strings: $a="malevolo" condition: $a }' > /root/rule.yar
+fi
+
+while true; do
+    rm -f binary report.txt
+    
+    nc -l -p 9000 > binary
+    echo "[AV2] File ricevuto. Avvio scansione..."
+
+    echo "--- REPORT AV2 (YARA) ---" > report.txt
+    date >> report.txt
+    yara /root/rule.yar binary >> report.txt
+
+    nc -w 2 $CENTRAL_NODE_IP 9002 < report.txt
+    
+    echo "[AV2] Ciclo completato."
+done
+EOF
+
+cat > av/av3.sh << 'EOF'
+#!/bin/bash
+# av3.sh - AIDE Integrity Daemon
+CENTRAL_NODE_IP="10.202.3.10"
+
+echo "[AV3] AIDE Service avviato in ascolto sulla porta 9000..."
+
+while true; do
+    rm -f binary report.txt
+    # Nota: AIDE non si resetta da solo, controlla solo le differenze. 
+    # In un caso reale dovresti ripristinare il DB qui se il file precedente ha fatto danni.
+    
+    nc -l -p 9000 > binary
+    echo "[AV3] File ricevuto. Esecuzione malware..."
+
+    chmod +x binary
+    ./binary &
+    PID=$!
+    sleep 3
+    # Uccidi il malware dopo l'esecuzione
+    kill $PID 2>/dev/null
+
+    echo "--- REPORT AV3 (AIDE Integrity) ---" > report.txt
+    date >> report.txt
+    aide --check >> report.txt
+
+    nc -w 2 $CENTRAL_NODE_IP 9003 < report.txt
+    
+    echo "[AV3] Ciclo completato."
+done
+EOF
+
+
+
+cat >av/test.sh << 'EOF'
+#!/bin/bash
+# test.sh - Invia malware e raccoglie i report
+
+# CONFIGURAZIONE IP
+IP_AV1="10.200.1.11" # Metti gli IP corretti della tua rete
+IP_AV2="10.200.1.12"
+IP_AV3="10.200.1.13"
+VIRUS_FILE="virus.exe"
+
+# Pulizia vecchi report locali
+rm -f report_av*.txt
+
+echo "=============================================="
+echo "   CENTRAL NODE - MALWARE ANALYSIS SYSTEM     "
+echo "=============================================="
+
+# 1. Prepara l'ascolto dei report (in background)
+echo "[*] Avvio listener per i report in ingresso..."
+nc -l -p 9001 > report_av1.txt &
+PID1=$!
+nc -l -p 9002 > report_av2.txt &
+PID2=$!
+nc -l -p 9003 > report_av3.txt &
+PID3=$!
+
+# Piccola pausa per essere sicuri che nc sia partito
+sleep 1
+
+# 2. Invia il Malware
+if [ ! -f "$VIRUS_FILE" ]; then
+    echo "Errore: $VIRUS_FILE non trovato! Crealo prima."
+    exit 1
+fi
+
+echo "[*] Invio malware ($VIRUS_FILE) ai nodi..."
+nc -w 1 $IP_AV1 9000 < $VIRUS_FILE
+echo "    -> Inviato a AV1"
+nc -w 1 $IP_AV2 9000 < $VIRUS_FILE
+echo "    -> Inviato a AV2"
+nc -w 1 $IP_AV3 9000 < $VIRUS_FILE
+echo "    -> Inviato a AV3"
+
+echo "[*] Attesa risultati (Timeout 10s)..."
+
+# 3. Attesa attiva dei file (o timeout)
+# Aspetta che i processi nc di ascolto terminino (terminano appena ricevono il file)
+wait $PID1 $PID2 $PID3 2>/dev/null
+
+echo ""
+echo "=============================================="
+echo "             RISULTATI ANALISI                "
+echo "=============================================="
+
+echo ""
+echo ">>> REPORT AV1 (ClamAV):"
+cat report_av1.txt
+
+echo ""
+echo ">>> REPORT AV2 (YARA):"
+cat report_av2.txt
+
+echo ""
+echo ">>> REPORT AV3 (AIDE):"
+cat report_av3.txt
+
+echo "=============================================="
+echo "Analisi completata."
+EOF
 ###############################
 
-chmod +x setup/*.sh routing/*.sh macsec/*.sh
+chmod +x setup/*.sh routing/*.sh macsec/*.sh dns/*.sh  ipsec/*.sh firewall/.sh av/*.sh
 echo "OK: creati setup/ e routing/. Ora esegui gli script dentro i nodi GNS3."
