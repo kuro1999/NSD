@@ -1273,33 +1273,53 @@ EOF
 
 cat > av/av3.sh << 'EOF'
 #!/bin/bash
-# av3.sh - AIDE Integrity Daemon
-CENTRAL_NODE_IP="10.202.3.10"
+# av3.sh - Chkrootkit Daemon
+# Riferimento: Rilevamento Rootkit
 
-echo "[AV3] AIDE Service avviato in ascolto sulla porta 9000..."
+CENTRAL_NODE="10.202.3.10" # IP del tuo Central Node
+
+echo "[AV3] Chkrootkit Service avviato sulla porta 9000..."
 
 while true; do
+    # 1. Pulizia
     rm -f binary report.txt
-    # Nota: AIDE non si resetta da solo, controlla solo le differenze. 
-    # In un caso reale dovresti ripristinare il DB qui se il file precedente ha fatto danni.
     
+    # 2. Ricezione Malware
     nc -l -p 9000 > binary
-    echo "[AV3] File ricevuto. Esecuzione malware..."
+    echo "[AV3] File ricevuto. Esecuzione e analisi..."
 
+    # 3. Esecuzione (Analisi Dinamica)
+    # È necessario eseguire il file per vedere se altera i processi o le porte
     chmod +x binary
     ./binary &
     PID=$!
+    
+    # Aspettiamo 3 secondi che il virus faccia "cose"
     sleep 3
-    # Uccidi il malware dopo l'esecuzione
+    
+    # Uccidiamo il processo (per evitare blocchi)
     kill $PID 2>/dev/null
 
-    echo "--- REPORT AV3 (AIDE Integrity) ---" > report.txt
+    # 4. Scansione con Chkrootkit
+    echo "--- REPORT AV3 (Chkrootkit) ---" > report.txt
     date >> report.txt
-    aide --check >> report.txt
-
-    nc -w 2 $CENTRAL_NODE_IP 9003 < report.txt
     
-    echo "[AV3] Ciclo completato."
+    # -q = Quiet mode (stampa solo se trova qualcosa di sospetto)
+    # Se non trova nulla, l'output sarà vuoto (ma noi aggiungiamo una nota dopo)
+    chkrootkit -q >> report.txt
+    
+    # Se il file report.txt ha solo la data (è quasi vuoto), scriviamo che è pulito
+    if [ $(wc -l < report.txt) -le 1 ]; then
+        echo "Nessun rootkit o anomalia rilevata nel sistema." >> report.txt
+    else
+        # Se c'è output, aggiungiamo l'intestazione di allarme
+        sed -i '1s/^/[!!!] ALLARME SICUREZZA RILEVATO\n/' report.txt
+    fi
+
+    # 5. Invio Risultato (Porta 9003)
+    nc -w 2 $CENTRAL_NODE 9003 < report.txt
+    echo "[AV3] Report inviato."
+    
 done
 EOF
 
