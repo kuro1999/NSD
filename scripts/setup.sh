@@ -1376,5 +1376,5 @@ echo "Analisi completata."
 EOF
 ###############################
 
-chmod +x setup/*.sh routing/*.sh macsec/*.sh dns/*.sh  ipsec/*.sh firewall/.sh av/*.sh
+chmod +x setup/*.sh routing/*.sh macsec/*.sh dns/*.sh  ipsec/*.sh firewall/*.sh av/*.sh
 echo "OK: creati setup/ e routing/. Ora esegui gli script dentro i nodi GNS3."
