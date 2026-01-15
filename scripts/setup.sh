@@ -36,6 +36,7 @@ exit
 end
 write memory
 VEOF
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 
@@ -63,6 +64,8 @@ exit
 end
 write memory
 VEOF
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
 EOF
 
 cat > setup/r103.sh <<'EOF'
@@ -89,10 +92,11 @@ exit
 end
 write memory
 VEOF
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 cat > setup/r201.sh <<'EOF'
-#!/usr/bin/env bash
+##!/usr/bin/env bash
 set -euo pipefail
 vtysh <<'VEOF'
 conf t
@@ -115,6 +119,7 @@ exit
 end
 write memory
 VEOF
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 cat > setup/ce1.sh <<'EOF'
@@ -130,6 +135,9 @@ ip route replace default via 1.0.101.1
 ip addr flush dev eth0 || true
 ip addr add 192.168.10.1/24 dev eth0
 ip link set eth0 up
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
 EOF
 
 cat > setup/client-a1.sh <<'EOF'
@@ -139,6 +147,7 @@ ip addr flush dev eth0 || true
 ip addr add 192.168.10.10/24 dev eth0
 ip link set eth0 up
 ip route replace default via 192.168.10.1
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 
@@ -155,6 +164,8 @@ ip route replace default via 1.0.102.1
 ip addr flush dev eth0 || true
 ip addr add 192.168.20.1/24 dev eth0
 ip link set eth0 up
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 cat > setup/client-b1.sh <<'EOF'
@@ -164,6 +175,7 @@ ip addr flush dev eth0 || true
 ip addr add 192.168.20.10/24 dev eth0
 ip link set eth0 up
 ip route replace default via 192.168.20.1
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 cat > setup/client-b2.sh <<'EOF'
@@ -173,6 +185,7 @@ ip addr flush dev eth0 || true
 ip addr add 192.168.20.11/24 dev eth0
 ip link set eth0 up
 ip route replace default via 192.168.20.1
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 cat > setup/r202.sh <<'EOF'
@@ -188,6 +201,7 @@ ip route replace default via 10.0.202.1
 ip addr flush dev eth1 || true
 ip addr add 10.202.3.1/24 dev eth1
 ip link set eth1 up
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
 
 cat > setup/central-node.sh <<'EOF'
@@ -197,6 +211,36 @@ ip addr flush dev eth0 || true
 ip addr add 10.202.3.10/24 dev eth0
 ip link set eth0 up
 ip route replace default via 10.202.3.1
+
+#connessione a NAT
+dhclient -v eth1
+
+# 1. Rimuovi il default gateway attuale (quello interno)
+ip route del default
+
+# 2. Aggiungi il NUOVO default gateway verso Internet (NAT)
+# (Uso l'IP che ho visto nel tuo log dhclient: 192.168.122.1)
+ip route add default via 192.168.122.1 dev eth1
+
+# 3. [FONDAMENTALE] Riaggiungi la rotta per la rete interna
+# Diciamo: "Tutto ciÃ² che inizia con 10.x.x.x mandalo al router interno (eth0)"
+# Sostituisci 10.202.3.1 con l'IP del tuo router interno se diverso
+ip route add 10.0.0.0/8 via 10.202.3.1 dev eth0
+
+#Metti il DNS  di Google per l'installazione
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 2.80.200.3" >> /etc/resolv.conf
+
+apt-get update
+apt-get install -y tinyproxy
+
+
+# Aggiungi "Allow 10.0.0.0/8" alla configurazione
+sed -i '/^Allow 127\.0\.0\.1/a Allow 10.0.0.0/8' /etc/tinyproxy/tinyproxy.conf
+
+# Riavvia il servizio
+service tinyproxy restart
+
 EOF
 
 cat > setup/gw200.sh <<'EOF'
@@ -204,25 +248,19 @@ cat > setup/gw200.sh <<'EOF'
 set -euo pipefail
 sysctl -w net.ipv4.ip_forward=1
 
-# --- Verso Internet (R201) ---
 ip addr flush dev eth0 || true
 ip addr add 10.0.200.2/30 dev eth0
 ip link set eth0 up
-# Rotta di default verso internet
 ip route replace default via 10.0.200.1 dev eth0
 
-# --- Verso DMZ (br1) ---
-# GW200 è il gateway della DMZ. 
-# [cite_start]Usiamo il pool AS200 come da traccia[cite: 177].
 ip addr flush dev eth1 || true
 ip addr add 2.80.200.1/24 dev eth1
 ip link set eth1 up
 
-# --- Rotte verso l'interno (Enterprise) ---
-# Per raggiungere LAN1 (10.200.1.0) e LAN2 (10.200.2.0)
-# devo passare per eFW che ha IP .2 nella DMZ
 ip route replace 10.200.1.0/24 via 2.80.200.2 dev eth1
 ip route replace 10.200.2.0/24 via 2.80.200.2 dev eth1
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
 EOF
 
 
@@ -249,6 +287,9 @@ ip route replace default via 2.80.200.1 dev eth0
 # LAN2 è dietro iFW. Dobbiamo sapere l'IP di iFW nella LAN1.
 # Supponendo che iFW sia collegato a br2 e abbia IP 10.200.1.2:
 ip route replace 10.200.2.0/24 via 10.200.1.2 dev eth1
+
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
 EOF
 
 
@@ -265,6 +306,8 @@ ip addr add 10.200.2.1/24 dev eth1
 ip link set eth1 up
 
 ip route replace default via 10.200.1.1
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
 EOF
 
 cat > setup/dns.sh <<'EOF'
@@ -275,6 +318,122 @@ ip addr flush dev eth0 || true
 ip addr add 2.80.200.3/24 dev eth0
 ip link set eth0 up
 ip route replace default via 2.80.200.1
+
+
+
+
+
+
+#!/bin/bash
+
+echo "--- INIZIO PULIZIA TOTALE DNSSEC ---"
+
+# 1. Ferma il servizio per sicurezza
+service named stop
+
+# 2. Rimuove tutte le chiavi generate in precedenza (K...)
+rm -f /etc/bind/Knsdcourse.xyz*
+
+# 3. Rimuove i file firmati e i dataset DS
+rm -f /etc/bind/db.nsdcourse.xyz.signed
+rm -f /etc/bind/dsset-nsdcourse.xyz.
+rm -f /etc/bind/named.conf.options.jnl
+
+# 4. RIPRISTINA il file di zona originale (senza chiavi in fondo)
+#    Questo sovrascrive il file esistente con una versione pulita.
+cat > /etc/bind/db.nsdcourse.xyz <<'EOF2'
+\$TTL 3h
+@   IN SOA  ns.nsdcourse.xyz. admin.nsdcourse.xyz. (
+            1     ; Serial
+            3h    ; Refresh
+            1h    ; Retry
+            1w    ; Expire
+            1h )  ; Negative caching TTL
+
+; Name Servers
+@       IN NS   ns.nsdcourse.xyz.
+
+; Record A (Indirizzi IP)
+@       IN A    2.80.200.3
+ns      IN A    2.80.200.3
+www     IN A    2.80.200.3
+EOF2
+
+# 5. Riavvia il servizio pulito
+service named start
+
+echo "--- PULIZIA COMPLETATA ---"
+echo "Ora il server Ã¨ tornato allo stato iniziale (senza DNSSEC)."
+echo "Puoi procedere con la generazione delle chiavi (una volta sola!)."
+
+
+
+
+
+
+
+
+
+#!/bin/bash
+set -e
+
+echo ">>> Configurazione Web Server..."
+service apache2 start
+
+echo ">>> Configurazione BIND Options..."
+cat > /etc/bind/named.conf.options <<CONF
+options {
+    directory "/var/cache/bind";
+    recursion no;
+    allow-query { any; };
+    listen-on-v6 { any; };
+    dnssec-validation auto;
+};
+CONF
+
+echo ">>> Configurazione BIND Local Zone..."
+cat > /etc/bind/named.conf.local <<CONF
+zone "nsdcourse.xyz" {
+    type master;
+    file "/etc/bind/db.nsdcourse.xyz.signed";
+};
+CONF
+
+echo ">>> Creazione File di Zona..."
+cat > /etc/bind/db.nsdcourse.xyz <<ZONE
+\$TTL 3h
+@   IN  SOA ns.nsdcourse.xyz. admin.nsdcourse.xyz. (
+        1       ; Serial
+        3h      ; Refresh
+        1h      ; Retry
+        1w      ; Expire
+        1h )    ; Negative Cache TTL
+
+@       IN  NS  ns.nsdcourse.xyz.
+@       IN  A   2.80.200.3
+ns      IN  A   2.80.200.3
+www     IN  A   2.80.200.3
+ZONE
+
+echo ">>> Generazione Chiavi DNSSEC (ZSK e KSK)..."
+cd /etc/bind
+# Genera ZSK
+dnssec-keygen -a ECDSAP384SHA384 -n ZONE nsdcourse.xyz
+# Genera KSK
+dnssec-keygen -f KSK -a ECDSAP384SHA384 -n ZONE nsdcourse.xyz
+
+echo ">>> Inclusione chiavi nella zona..."
+for key in Knsdcourse.xyz*.key; do
+    echo "\$INCLUDE $key" >> db.nsdcourse.xyz
+done
+
+echo ">>> Firma della zona..."
+dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -o nsdcourse.xyz -t db.nsdcourse.xyz
+
+echo ">>> Riavvio BIND..."
+service named restart
+
+echo ">>> COMPLETATO! DNSSEC e HTTP attivi."
 EOF
 
 cat > setup/av1.sh <<'EOF'
@@ -311,6 +470,7 @@ ip addr flush dev eth0 || true
 ip addr add 10.200.2.10/24 dev eth0
 ip link set eth0 up
 ip route replace default via 10.200.2.1
+echo "nameserver 2.80.200.3" > /etc/resolv.conf
 
 EOF
 
@@ -445,12 +605,11 @@ router bgp 100
 end
 write memory
 VEOF
-
 EOF
 
 
 cat > routing/bgp_r103.sh <<'EOF'
-#!/usr/bin/env bash
+##!/usr/bin/env bash
 set -euo pipefail
 vtysh <<'VEOF'
 conf t
@@ -484,11 +643,8 @@ cat > routing/bgp_r201.sh <<'EOF'
 set -euo pipefail
 vtysh <<'VEOF'
 conf t
-! (opzionale) rotta verso DMZ per poterla annunciare via BGP
+!  rotta verso DMZ per poterla annunciare via BGP
 ip route 2.80.200.0/24 10.0.200.2
-ip route 10.200.1.0/24 10.0.200.2
-ip route 10.200.2.0/24 10.0.200.2
-
 !
 router bgp 200
  bgp router-id 2.255.0.1
@@ -502,8 +658,7 @@ router bgp 200
  exit-address-family
 end
 write memory
-VEOF
-
+VEOF 
 EOF
 
 
@@ -518,12 +673,9 @@ cat > ipsec/ce1.sh <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-# Assicuriamo che la directory di configurazione esista
 mkdir -p /etc/swanctl/conf.d
 
-echo ">>> Configurazione IPsec su CE1..."
-
-cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
+cat > /etc/swanctl/conf.d/ipsec.conf <<'EndFile'
 connections {
   ce1-ce2 {
     local_addrs  = 1.0.101.2
@@ -560,7 +712,7 @@ secrets {
     secret = "nsd-ce1-ce2-psk-2026"
   }
 }
-CONF
+EndFile
 
 # Avvio/Riavvio servizi
 echo ">>> Riavvio ipsec..."
@@ -578,19 +730,18 @@ swanctl --initiate --child lan-lan
 # Verifica finale
 echo ">>> Stato Tunnel:"
 swanctl --list-sas
+
 EOF
 
 
 # --- Configurazione per CE2 (Responder) ---
 cat > ipsec/ce2.sh <<'EOF'
-#!//bin/bash
+#!/bin/bash
 set -euo pipefail
 
 mkdir -p /etc/swanctl/conf.d
 
-echo ">>> Configurazione IPsec su CE2..."
-
-cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
+cat > /etc/swanctl/conf.d/ipsec.conf <<'EOF2'
 connections {
   ce2-ce1 {
     local_addrs  = 1.0.102.2
@@ -627,7 +778,7 @@ secrets {
     secret = "nsd-ce1-ce2-psk-2026"
   }
 }
-CONF
+EOF2
 
 # Avvio/Riavvio servizi
 echo ">>> Riavvio ipsec..."
@@ -717,6 +868,75 @@ swanctl --list-sas
 
 EOF
 
+cat > ipsec/R202.sh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+mkdir -p /etc/swanctl/conf.d
+
+echo ">>> Configurazione IPsec (Swanctl) su R202..."
+
+cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
+connections {
+  r202-efw {
+    local_addrs  = 10.0.202.2
+    remote_addrs = 2.80.200.2
+
+    version = 2
+    mobike = no
+    encap = yes
+
+    local {
+      auth = psk
+      id = r202
+    }
+    remote {
+      auth = psk
+      id = efw
+    }
+
+    # MATCH CON EFW
+    proposals = aes128-sha256-modp2048
+
+    children {
+      lan-lan {
+        # Rete Locale (Central Node LAN3)
+        local_ts  = 10.202.3.0/24
+        # Rete Remota (Antivirus LAN1)
+        remote_ts = 10.200.1.0/24
+
+        # MATCH CON EFW
+        esp_proposals = aes128-sha256-modp2048
+
+        start_action = trap
+      }
+    }
+  }
+}
+
+secrets {
+  ike-psk {
+    id-1 = r202
+    id-2 = efw
+    secret = "nsd-efw-r202-psk-2026"
+  }
+}
+CONF
+
+echo ">>> Riavvio StrongSwan su R202..."
+service ipsec restart || service strongswan restart
+sleep 2
+
+echo ">>> Caricamento credenziali..."
+swanctl --load-creds
+swanctl --load-conns
+
+echo ">>> Tentativo di avvio connessione..."
+swanctl --initiate --child lan-lan
+
+echo ">>> Stato Tunnel:"
+swanctl --list-sas
+EOF
 
 cat > ipsec/eFW.sh <<'EOF'
 
@@ -792,26 +1012,28 @@ EOF
 
 
 
-
-
-
-
 # =========================
 # Phase C: MACsec (MKA) - Site 2 LAN
 # =========================
 
 cat > macsec/mka_ce2.sh <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
+# LAN interface
 LAN_IF=eth0
+
+# MACsec interface
 MACSEC_IF=macsec0
+
+# IP LAN
 IP_ADDR=192.168.20.1/24
 
+# MKA keys
 CAK=00112233445566778899aabbccddeeff
 CKN=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
-cat > macsec.conf <<EOF2
+# MACsec config
+cat > macsec.conf <<'EOF2'
 eapol_version=3
 ap_scan=0
 network={
@@ -823,20 +1045,19 @@ network={
 }
 EOF2
 
+# Start MKA
 wpa_supplicant -i $LAN_IF -B -Dmacsec_linux -c macsec.conf
-
-# piccolo delay: macsec0 viene creata qualche istante dopo
 sleep 2
-
-ip addr del $IP_ADDR dev $LAN_IF 2>/dev/null || true
-ip addr replace $IP_ADDR dev $MACSEC_IF
+# Move IP to MACsec
+ip addr del $IP_ADDR dev $LAN_IF
+ip addr add $IP_ADDR dev $MACSEC_IF
 ip link set $MACSEC_IF up
+
 EOF
 
 
 cat > macsec/mka_b1.sh <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
 LAN_IF=eth0
 MACSEC_IF=macsec0
@@ -846,7 +1067,7 @@ GW=192.168.20.1
 CAK=00112233445566778899aabbccddeeff
 CKN=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
-cat > macsec.conf <<EOF2
+cat > macsec.conf <<'EOF2'
 eapol_version=3
 ap_scan=0
 network={
@@ -860,19 +1081,16 @@ EOF2
 
 wpa_supplicant -i $LAN_IF -B -Dmacsec_linux -c macsec.conf
 sleep 2
-
-ip addr del $IP_ADDR dev $LAN_IF 2>/dev/null || true
-ip addr replace $IP_ADDR dev $MACSEC_IF
+ip addr del $IP_ADDR dev $LAN_IF
+ip addr add $IP_ADDR dev $MACSEC_IF
 ip link set $MACSEC_IF up
 
-# fondamentale: default route via CE2 su macsec0
-ip route replace default via $GW dev $MACSEC_IF
+ip route add default via $GW dev $MACSEC_IF
 EOF
 
 
 cat > macsec/mka_b2.sh <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
 LAN_IF=eth0
 MACSEC_IF=macsec0
@@ -882,7 +1100,7 @@ GW=192.168.20.1
 CAK=00112233445566778899aabbccddeeff
 CKN=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
-cat > macsec.conf <<EOF2
+cat > macsec.conf <<'EOF2'
 eapol_version=3
 ap_scan=0
 network={
@@ -896,12 +1114,11 @@ EOF2
 
 wpa_supplicant -i $LAN_IF -B -Dmacsec_linux -c macsec.conf
 sleep 2
-
-ip addr del $IP_ADDR dev $LAN_IF 2>/dev/null || true
-ip addr replace $IP_ADDR dev $MACSEC_IF
+ip addr del $IP_ADDR dev $LAN_IF
+ip addr add $IP_ADDR dev $MACSEC_IF
 ip link set $MACSEC_IF up
 
-ip route replace default via $GW dev $MACSEC_IF
+ip route add default via $GW dev $MACSEC_IF
 EOF
 
 
@@ -1032,85 +1249,60 @@ EOF
 
 cat > firewall/gw200.sh <<'EOF'
 #!/bin/bash
-set -e
-
-echo "--- Configurazione Firewall GW200 ---"
-
-# 1. Abilita il forwarding (Essenziale per fare da router)
+# 1. Abilita il forwarding (fondamentale)
 sysctl -w net.ipv4.ip_forward=1
 
-# 2. Pulizia Totale (Flush) delle regole precedenti
+# 2. Pulisci tutte le regole vecchie
 iptables -F
 iptables -X
 iptables -t nat -F
-iptables -t nat -X
-iptables -t mangle -F
-iptables -t mangle -X
 
-# 3. Imposta Policy di Default a DROP (Chiudi tutto)
+# 3. Imposta la Policy di Default: BLOCCA TUTTO (tranne l'uscita dal router stesso)
 iptables -P INPUT DROP
 iptables -P FORWARD DROP
 iptables -P OUTPUT ACCEPT
 
-# ================================
-# CHAIN INPUT (Traffico diretto AL router GW200)
-# ================================
-# Accetta traffico di loopback (locale)
+# --- CHAIN INPUT (Traffico diretto AL router GW200) ---
+# Accetta traffico locale (loopback)
 iptables -A INPUT -i lo -j ACCEPT
-
-# Accetta traffico di connessioni già stabilite (Stateful)
+# Accetta risposte a connessioni fatte dal router stesso o giÃ  stabilite
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# Accetta ICMP (Ping) dall'interno (eth1) per debug, ma non da Internet
+# Accetta Ping solo dall'interno per debug
 iptables -A INPUT -i eth1 -p icmp -j ACCEPT
 
+# --- CHAIN FORWARD (Traffico che ATTRAVERSA GW200) ---
 
-# ================================
-# CHAIN FORWARD (Traffico che ATTRAVERSA GW200)
-# ================================
-
-# REGOLA 0: Stateful Inspection (Lascia passare le risposte)
+# REGOLA 0: Stateful Inspection (FONDAMENTALE)
 iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # REGOLA 1: LAN-Client (LAN2) verso Internet
-# Requisito: "LAN-client can access the external network... if originated by it"
-# La LAN2 è 10.200.2.0/24. Arriva dall'interfaccia interna (eth1) ed esce su eth0.
+# Requisito: "LAN-client can access... only if originated by it"
+# La LAN2 arriva da eth1 e vuole uscire su eth0
 iptables -A FORWARD -i eth1 -o eth0 -s 10.200.2.0/24 -j ACCEPT
 
-# REGOLA 2: Accesso Esterno verso DNS/Web (DMZ)
-# Requisito: "Allow inbound connections for DNS requests... HTTP traffic"
-# Il DNS server è 2.80.200.3.
+
+# REGOLA 2: Internet verso DNS Server (DMZ)
+# Requisito: "DNS requests" e "HTTP traffic" verso DNS-server
 iptables -A FORWARD -i eth0 -d 2.80.200.3 -p udp --dport 53 -j ACCEPT
 iptables -A FORWARD -i eth0 -d 2.80.200.3 -p tcp --dport 53 -j ACCEPT
 iptables -A FORWARD -i eth0 -d 2.80.200.3 -p tcp --dport 80 -j ACCEPT
 
-# REGOLA 3: Transito VPN verso eFW
-# Requisito: "IPSEC traffic to eFW"
-# eFW è 2.80.200.2. Deve ricevere i pacchetti VPN da R202.
+# REGOLA 3: Internet verso eFW (VPN IPsec)
+# Requisito: "IPSEC traffic to eFW" (2.80.200.2)
+# Serve per far passare il tunnel Site-to-Site tra R202 e eFW
 iptables -A FORWARD -i eth0 -d 2.80.200.2 -p udp --dport 500 -j ACCEPT
 iptables -A FORWARD -i eth0 -d 2.80.200.2 -p udp --dport 4500 -j ACCEPT
 iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT
 
-# REGOLA 4: Uscita generica per la DMZ (opzionale ma consigliata)
-# Permette ai server in DMZ (eFW, DNS) di scaricare aggiornamenti
+# Lascia uscire la DMZ per aggiornamenti (es. eFW o DNS devono scaricare pacchetti)
 iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
 
-# Permetti il traffico di ritorno (Report) verso il Central Node
 
-iptables -A FORWARD -p tcp --dport 9000 -j ACCEPT
-iptables -A FORWARD -p tcp --dport 9001 -j ACCEPT
-iptables -A FORWARD -p tcp --dport 9002 -j ACCEPT
-iptables -A FORWARD -p tcp --dport 9003 -j ACCEPT
-
-
-# ================================
-# NAT (Masquerade)
-# ================================
-# Tutto ciò che esce da eth0 viene mascherato con l'IP pubblico di GW200
+# --- NAT (Masquerade) ---
+# Permette agli indirizzi privati di navigare mascherandosi dietro l'IP pubblico di GW200
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
-echo "Firewall GW200 Attivo!"
-iptables -L -v -n
+echo "Firewall GW200 applicato."
 EOF
 
 
@@ -1118,111 +1310,151 @@ EOF
 cat > firewall/eFW.sh <<'EOF'
 #!/bin/bash
 echo "--- Configurazione Firewall eFW ---"
+  
+ # 1. Abilita il forwarding
+   sysctl -w net.ipv4.ip_forward=1
+  
+   # 2. Pulizia regole
+   iptables -F
+  iptables -X
+  iptables -t nat -F
+ 
+  # 3. Policy di Default: DROP (Chiudi tutto)
+  iptables -P INPUT DROP
+  iptables -P FORWARD DROP
+  iptables -P OUTPUT ACCEPT
+ 
+  # ================================
+  # CHAIN INPUT (Traffico diretto a eFW)
+  # ================================
+  # Accetta traffico locale
+  iptables -A INPUT -i lo -j ACCEPT
+  # Accetta connessioni gia stabilite (es. aggiornamenti del firewall stesso)
+  iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+ 
+  # REGOLA VPN: Accetta traffico IPsec in ingresso (da Internet/GW200)
+  # Serve per far salire il tunnel con R202
+  iptables -A INPUT -p udp --dport 500 -j ACCEPT # serve per IKE
+  iptables -A INPUT -p udp --dport 4500 -j ACCEPT # serve per traffico mescolato con NAT
+  iptables -A INPUT -p esp -j ACCEPT # accetta traffico ESP
+ 
+  # (Opzionale) SSH/Ping dalla DMZ (management)
+  iptables -A INPUT -s 2.80.200.0/24 -p icmp -j ACCEPT
+ 
+  # ===============================
+  # CHAIN FORWARD (Traffico che passa attraverso)
+  # ===============================
+  iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+ 
+  # REGOLA 1: LAN-Client (LAN2) verso Internet
+  # La LAN2 arriva da eth1 (via iFW).
+  # Deve poter andare ovunque.
+  iptables -A FORWARD -i eth1 -o eth0 -s 10.200.2.0/24 -j ACCEPT
+  iptables -A FORWARD -i eth0 -o eth1 -d 10.200.2.0/24 -j ACCEPT
+ 
+  # REGOLA 2: Antivirus (LAN1) verso Central Node (LAN3)
+  # Gli AV possono parlare SOLO con la rete del Central Node
+  iptables -A FORWARD -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
+ 
+  # REGOLA 3: Central Node (LAN3) verso Antivirus (LAN1)
+  # Permette al Central Node di iniziare connessioni verso gli AV
+  iptables -A FORWARD -s 10.202.3.0/24 -d 10.200.1.0/24 -j ACCEPT
+  # Permetti il traffico in uscita verso il Central Node
+ 
+  echo "Firewall eFW configurato."
+  iptables -L -v -n
+EOF
+
+
+
+cat > firewall/ifw.sh <<'EOF'
+#!/bin/bash
+echo "--- Configurazione Firewall iFW ---"
 
 # 1. Abilita il forwarding
 sysctl -w net.ipv4.ip_forward=1
 
 # 2. Pulizia regole
+# -F = Flush
+# -X = Delete chain
+# -t = Table (non huardare quella di default)
 iptables -F
 iptables -X
 iptables -t nat -F
 
-# 3. Policy di Default: DROP (Chiudi tutto)
+# 3. Policy di Default: DROP
+# -P = cosa deve fare il firewall quando un pacchetto
+# non corrisponde a nessuna delle regole specifiche che hai scritto
 iptables -P INPUT DROP
 iptables -P FORWARD DROP
 iptables -P OUTPUT ACCEPT
 
 # ================================
-# CHAIN INPUT (Traffico diretto a eFW)
+# CHAIN INPUT (Traffico diretto a iFW)
 # ================================
-# Accetta traffico locale
+# -A = append
+# -i = interface (specifica da quale scheda di rete deve provenire il pacchetto)
+# -j = jump (definisce azione da intraprendere se il pacche corrisponde ai criteri)
+# -m state --state= Match (controlla se il pacchetto fa parte di una connessione gia inizializzata)
+# -p = protocol (quale protocollo di comunicazione sto filtrando)
+# -s = Source (chi ha inviato il pacchetto)
 iptables -A INPUT -i lo -j ACCEPT
-# Accetta connessioni già stabilite (es. aggiornamenti del firewall stesso)
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# REGOLA VPN: Accetta traffico IPsec in ingresso (da Internet/GW200)
-# Serve per far salire il tunnel con R202
-iptables -A INPUT -p udp --dport 500 -j ACCEPT
-iptables -A INPUT -p udp --dport 4500 -j ACCEPT
-iptables -A INPUT -p esp -j ACCEPT
-
-# (Opzionale) SSH/Ping dalla DMZ (management)
-iptables -A INPUT -s 2.80.200.0/24 -p icmp -j ACCEPT
-
-
-# ================================
-# CHAIN FORWARD (Traffico che passa attraverso)
-# ================================
-iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# REGOLA 1: LAN-Client (LAN2) verso Internet
-# La LAN2 (10.200.2.0/24) arriva da eth1 (via iFW).
-# Deve poter andare ovunque.
-iptables -A FORWARD -i eth1 -o eth0 -s 10.200.2.0/24 -j ACCEPT
-
-# REGOLA 2: Antivirus (LAN1) verso Central Node (LAN3)
-# Gli AV (10.200.1.0/24) possono parlare SOLO con la rete del Central Node (10.202.3.0/24)
-# Questo traffico verrà poi cifrato dalla VPN (che configureremo dopo)
-iptables -A FORWARD -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
-
-# REGOLA 3: Central Node (LAN3) verso Antivirus (LAN1)
-# Permette al Central Node di iniziare connessioni verso gli AV
-iptables -A FORWARD -s 10.202.3.0/24 -d 10.200.1.0/24 -j ACCEPT
-
-# NOTA: Manca la regola per LAN1 -> Internet.
-# Quindi se un virus prova a uscire, cade nel DROP di default.
-
-echo "Firewall eFW configurato."
-iptables -L -v -n
-EOF
-
-
-
-cat > firewall/iFW.sh <<'EOF'
-#!/bin/bash
-echo "--- BLINDAGGIO iFW ---"
-
-# 1. Pulisci tutto (Tabula rasa)
-iptables -F
-iptables -X
-
-# 2. Imposta la Policy su DROP (Questo è il comando che uccide il Redirect)
-# Se il pacchetto non è autorizzato, viene buttato via SENZA risposta.
-iptables -P INPUT DROP
-iptables -P FORWARD DROP
-iptables -P OUTPUT ACCEPT
-
-# 3. Regola per connessioni già stabilite (fondamentale per le risposte)
-iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# 4. LAN-Client (LAN2): LUI PUÒ PASSARE
-iptables -A FORWARD -s 10.200.2.0/24 -j ACCEPT
-
-# 5. AV1 (LAN1): PUÒ ANDARE SOLO VERSO LA VPN (Central Node)
-# Nota: Non c'è nessuna regola per andare su Internet (10.0.200.1)
-iptables -A FORWARD -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
-
-# (Opzionale) Permetti ICMP in ingresso al firewall per debug locale
+# Ping dai router vicini per test
 iptables -A INPUT -p icmp -j ACCEPT
 
-echo "iFW ora è in modalità DROP."
-EOF
+# ================================
+# CHAIN FORWARD (Traffico che attraversa iFW)
+# ================================
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
+# REGOLA 1: LAN-Client (LAN2) verso OVUNQUE
+# La LAN2 è "trusted". Può andare su Internet e verso la DMZ.
+iptables -A FORWARD -s 10.200.2.0/24 -j ACCEPT
+
+# REGOLA 2: Antivirus (LAN1) verso Central Node (VPN)
+# Permettiamo al traffico AV di passare SOLO se è diretto al Central Node
+iptables -A FORWARD -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
+
+# REGOLA 3: Antivirus (LAN1) verso LAN2 (Client) -> BLOCCO ESPLICITO
+# (Non servirebbe perché c'è il Default DROP, ma lo mettiamo per sicurezza/log)
+# Nessuna regola permette 10.200.1.x -> 10.200.2.x
+
+echo "Firewall iFW configurato."
+
+iptables -L -v -n
+EOF
 
 
 ##########################################
 
 cat > av/av1.sh <<'EOF'
 #!/bin/bash
-#av1.sh - ClamAV Listener Daemon
+# service_av.sh - ClamAV Listener Daemon
 CENTRAL_NODE_IP="10.202.3.10" # Sostituisci con IP vero del Central Node
+sleep 20
+echo "[AV1] setup"
+# 1. Collega al Proxy
+export http_proxy=http://10.202.3.10:8888
+export https_proxy=http://10.202.3.10:8888
+
+
+# 2. Installa
+apt-get update
+apt-get install -y clamav netcat
+
+# 3. Pulisci (Hardening locale)
+unset http_proxy
+unset https_proxy
+echo "[AV1] setup completed"
 
 echo "[AV1] ClamAV Service avviato in ascolto sulla porta 9000..."
+
 
 while true; do
     # 1. Pulizia preventiva (Clean State)
     rm -f binary report.txt
-    
+
     # 2. Attesa ricezione (Bloccante finché non arriva qualcosa)
     nc -l -p 9000 > binary
     echo "[AV1] File ricevuto. Avvio scansione..."
@@ -1235,18 +1467,39 @@ while true; do
     # 4. Invio Report al Central Node
     echo "[AV1] Invio report..."
     nc -w 2 $CENTRAL_NODE_IP 9001 < report.txt
-    
+
     echo "[AV1] Ciclo completato. In attesa del prossimo file."
     echo "----------------------------------------------------"
 done
+
 EOF
 
 
 
 cat > av/av2.sh << 'EOF'
+
 #!/bin/bash
-#av2.sh - YARA Listener Daemon
+# service_av.sh - YARA Listener Daemon
 CENTRAL_NODE_IP="10.202.3.10"
+
+sleep 20
+
+echo "[AV2] setup"
+# 1. Collega al Proxy
+export http_proxy=http://10.202.3.10:8888
+export https_proxy=http://10.202.3.10:8888
+
+
+# 2. Installa
+apt-get update
+apt-get install -y yara netcat
+
+# 3. Pulisci
+unset http_proxy
+unset https_proxy
+
+echo "[AV2] setup completed"
+
 
 echo "[AV2] YARA Service avviato in ascolto sulla porta 9000..."
 
@@ -1257,7 +1510,7 @@ fi
 
 while true; do
     rm -f binary report.txt
-    
+
     nc -l -p 9000 > binary
     echo "[AV2] File ricevuto. Avvio scansione..."
 
@@ -1266,83 +1519,76 @@ while true; do
     yara /root/rule.yar binary >> report.txt
 
     nc -w 2 $CENTRAL_NODE_IP 9002 < report.txt
-    
+
     echo "[AV2] Ciclo completato."
 done
 EOF
 
-cat > av/av3.sh << 'EOF'
-#setup
-# Crea la cartella per il db se non esiste
-mkdir -p /var/lib/aide
-
-# Sovrascrivi la config con quella corretta e completa
-cat > /etc/aide/aide_exam.conf << 'EOF'
-database_in=file:/var/lib/aide/aide.db
-database_out=file:/var/lib/aide/aide.db.new
-# Controlla: permessi(p)+user(u)+group(g)+size(s)+checksum(md5+sha256)
-/root/binary p+u+g+s+md5+sha256
-
-
-aide --init --config /etc/aide/aide_exam.conf
-mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-#fine setup
-
-
-
-#####inizio av
+cat > av3.sh <<'EOF'
 #!/bin/bash
-# av3.sh - AIDE Integrity Scanner (Real Program - Fast Config)
+#v3.sh - STRACE Listener Daemon (Sandbox)
 CENTRAL_NODE_IP="10.202.3.10"
-CONF_FILE="/etc/aide/aide_exam.conf"
+sleep 20
 
-echo "[AV3] AIDE Service avviato in ascolto sulla porta 9000..."
+# 1. Collega al Proxy
+export http_proxy=http://10.202.3.10:8888
+export https_proxy=http://10.202.3.10:8888
 
-# CHECK INIZIALE: Se il DB non c'è, crealo al volo
-if [ ! -f /var/lib/aide/aide.db ]; then
-    echo "[AV3] Setup iniziale DB..."
-    aide --init --config $CONF_FILE > /dev/null 2>&1
-    mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+# 2. Installa
+apt-get update
+apt-get install -y strace netcat
+
+
+
+# 3. Pulisci
+unset http_proxy
+unset https_proxy
+
+
+
+echo "[AV3] SANDBOX Service avviato in ascolto sulla porta 9000..."
+
+# Assicuriamoci che strace sia installato (controllo opzionale ma utile)
+if ! command -v strace &> /dev/null; then
+    echo "Errore: strace non trovato!"
+    exit 1
 fi
 
 while true; do
-    # 1. Pulizia preventiva
-    rm -f /root/binary report.txt
-    
-    # 2. Aggiornamento DB: Diciamo ad AIDE che l'assenza del file è lo stato "normale"
-    #    Così quando il file arriva, sarà considerato una "novità/anomalia"
-    aide --update --config $CONF_FILE > /dev/null 2>&1
-    if [ -f /var/lib/aide/aide.db.new ]; then
-        mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-    fi
+    # 1. Pulizia preventiva (uguale al tuo script yara)
+    rm -f binary report.txt
 
-    # 3. RICEZIONE
-    nc -l -p 9000 > /root/binary
-    echo "[AV3] File ricevuto. Analisi AIDE..."
+    # 2. Ricezione File
+    nc -l -p 9000 > binary
 
-    echo "--- REPORT AV3 (System Integrity AIDE) ---" > report.txt
-    date >> report.txt
+    # Controllo se il file è arrivato davvero
+    if [ -s binary ]; then
+        echo "[AV3] File ricevuto. Avvio esecuzione sandbox..."
 
-    # 4. SCANSIONE (Veloce perché controlla solo 1 file)
-    # AIDE restituisce errore (exit code != 0) se trova differenze.
-    # Noi cerchiamo proprio le differenze (file aggiunto).
-    aide --check --config $CONF_FILE >> report.txt 2>&1
-    
-    # Verifica se AIDE ha notato il file
-    if grep -q "/root/binary" report.txt; then
-        echo "" >> report.txt
-        echo "[!!!] ALLARME: File non autorizzato rilevato nel sistema!" >> report.txt
-        echo "Status: INTEGRITY VIOLATION" >> report.txt
+        # --- PASSAGGIO CRUCIALE ---
+        # Per far funzionare strace, il file DEVE essere eseguibile
+        chmod +x binary
+
+        echo "--- REPORT AV3 (STRACE DYNAMIC ANALYSIS) ---" > report.txt
+        date >> report.txt
+
+        # 3. Esecuzione con Strace
+        # timeout 5s: ferma il virus dopo 5 secondi
+        # -f: segue i processi figli
+        # ./binary: esegue il file scaricato
+        # 2>&1: cattura l'output di strace (che normalmente va su stderr)
+        timeout 5s strace -f -e trace=openat,connect,execve,unlink ./binary >> report.txt 2>&1
     else
-        echo "[OK] Nessuna violazione critica." >> report.txt
+        echo "[AV3] Errore: File ricevuto vuoto o non valido." > report.txt
     fi
 
-    # 5. INVIO REPORT
+    # 4. Invio Report indietro (sulla porta 9003 per AV3)
     nc -w 2 $CENTRAL_NODE_IP 9003 < report.txt
-    
+
     echo "[AV3] Ciclo completato."
 done
 EOF
+
 
 
 
@@ -1363,6 +1609,9 @@ rm -f report_av*.txt
 echo "=============================================="
 echo "   CENTRAL NODE - MALWARE ANALYSIS SYSTEM     "
 echo "=============================================="
+
+echo "STOPPING PROXY BEFORE ANALISYS"
+service tinyproxy stop
 
 # 1. Prepara l'ascolto dei report (in background)
 echo "[*] Avvio listener per i report in ingresso..."
@@ -1410,13 +1659,54 @@ echo ">>> REPORT AV2 (YARA):"
 cat report_av2.txt
 
 echo ""
-echo ">>> REPORT AV3 (AIDE):"
+echo ">>> REPORT AV3 (Strace):"
 cat report_av3.txt
 
 echo "=============================================="
 echo "Analisi completata."
+
+service tinyproxy restart
+
 EOF
 ###############################
 
+
+
+
+
+
+cat >nat/config.sh << 'EOF'
+# 1. Rimuovi il default gateway attuale (quello interno)
+ip route del default
+
+# 2. Aggiungi il NUOVO default gateway verso Internet (NAT)
+# (Uso l'IP che ho visto nel tuo log dhclient: 192.168.122.1)
+ip route add default via 192.168.122.1 dev eth1
+
+# 3. [FONDAMENTALE] Riaggiungi la rotta per la rete interna
+# Diciamo: "Tutto ciò che inizia con 10.x.x.x mandalo al router interno (eth0)"
+# Sostituisci 10.202.3.1 con l'IP del tuo router interno se diverso
+ip route add 10.0.0.0/8 via 10.202.3.1 dev eth0
+
+
+# Metti il DNS di Google per l'installazione
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+apt-get update
+apt-get install -y tinyproxy
+
+
+# Aggiungi "Allow 10.0.0.0/8" alla configurazione
+sed -i '/^Allow 127\.0\.0\.1/a Allow 10.0.0.0/8' /etc/tinyproxy/tinyproxy.conf
+
+# Riavvia il servizio
+service tinyproxy restart
+EOF
+
 chmod +x setup/*.sh routing/*.sh macsec/*.sh dns/*.sh  ipsec/*.sh firewall/*.sh av/*.sh
 echo "OK: creati setup/ e routing/. Ora esegui gli script dentro i nodi GNS3."
+
+
+
+
+
