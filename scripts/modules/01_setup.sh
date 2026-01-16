@@ -158,12 +158,14 @@ ip route replace default via 1.0.102.1
 ip addr flush dev eth0 || true
 ip addr add 192.168.20.1/24 dev eth0
 ip link set eth0 up
-# 1. Eccezione: NON fare NAT per il traffico verso Site 1 (VPN)
-iptables -t nat -A POSTROUTING -s 192.168.20.0/24 -d 192.168.10.0/24 -j ACCEPT
 
-# 2. Regola standard: Fai NAT per tutto il resto
-iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
 echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
+# Pulisci tutto
+iptables -t nat -F
+
+# Unica regola
+iptables -t nat -A POSTROUTING -o eth1 ! -d 192.168.10.0/24 -j MASQUERADE
 EOF
 
 write_file "$OUT/setup/client-b1.sh" <<'EOF'
