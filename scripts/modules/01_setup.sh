@@ -126,6 +126,10 @@ ip route replace default via 1.0.101.1
 ip addr flush dev eth0 || true
 ip addr add 192.168.10.1/24 dev eth0
 ip link set eth0 up
+# 1. Eccezione: NON fare NAT per il traffico verso Site 2 (VPN)
+iptables -t nat -A POSTROUTING -s 192.168.10.0/24 -d 192.168.20.0/24 -j ACCEPT
+
+# 2. Regola standard: Fai NAT per tutto il resto (Internet)
 iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
 echo "nameserver 2.80.200.3" > /etc/resolv.conf
 
@@ -154,6 +158,10 @@ ip route replace default via 1.0.102.1
 ip addr flush dev eth0 || true
 ip addr add 192.168.20.1/24 dev eth0
 ip link set eth0 up
+# 1. Eccezione: NON fare NAT per il traffico verso Site 1 (VPN)
+iptables -t nat -A POSTROUTING -s 192.168.20.0/24 -d 192.168.10.0/24 -j ACCEPT
+
+# 2. Regola standard: Fai NAT per tutto il resto
 iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
 echo "nameserver 2.80.200.3" > /etc/resolv.conf
 EOF
@@ -305,6 +313,7 @@ ip addr flush dev eth0 || true
 ip addr add 2.80.200.3/24 dev eth0
 ip link set eth0 up
 ip route replace default via 2.80.200.1
+ip route add 10.200.2.0/24 via 2.80.200.2 dev eth0
 EOF
 
 write_file "$OUT/setup/av1.sh" <<'EOF'
