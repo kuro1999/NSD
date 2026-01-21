@@ -1,5 +1,12 @@
+
 #!/bin/bash
 set -euo pipefail
+
+echo ">>> Arresto forzato StrongSwan..."
+service ipsec stop || true
+service strongswan stop || true
+killall charon 2>/dev/null || true
+rm -f /var/run/charon.pid
 
 mkdir -p /etc/swanctl/conf.d
 
@@ -8,7 +15,7 @@ echo ">>> Configurazione IPsec (Swanctl) su R202..."
 cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
 connections {
   r202-efw {
-    local_addrs  = 10.0.202.2
+    local_addrs  = 2.0.202.2
     remote_addrs = 2.80.200.2
 
     version = 2
@@ -24,20 +31,16 @@ connections {
       id = efw
     }
 
-    # MATCH CON EFW
-    proposals = aes128-sha256-modp2048
+    # MATCH CON EFW (Doppia Opzione)
+    proposals = aes128-sha256-modp2048,aes128-sha1-modp1024
 
     children {
       lan-lan {
-        # Rete Locale (Central Node LAN3)
         local_ts  = 10.202.3.0/24
-        # Rete Remota (Antivirus LAN1)
         remote_ts = 10.200.1.0/24
 
-        # MATCH CON EFW
-        esp_proposals = aes128-sha256-modp2048
-
-        start_action = trap
+        # MATCH CON EFW (Doppia Opzione)
+        esp_proposals = aes128-sha256-modp2048,aes128-sha1-modp1024
       }
     }
   }
@@ -47,14 +50,14 @@ secrets {
   ike-psk {
     id-1 = r202
     id-2 = efw
-    secret = "nsd-efw-r202-psk-2026"
+    secret = "nsd-r202-efw-psk-2026"
   }
 }
 CONF
 
-echo ">>> Riavvio StrongSwan su R202..."
-service ipsec restart || service strongswan restart
-sleep 2
+echo ">>> Avvio Pulito StrongSwan su R202..."
+/usr/lib/ipsec/starter --daemon charon || /usr/sbin/ipsec start
+sleep 3
 
 echo ">>> Caricamento credenziali..."
 swanctl --load-creds
