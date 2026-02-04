@@ -63,13 +63,11 @@ In sintesi, il progetto fornisce un ambiente di rete completo con **routing dina
 * * *
 
 **Comandi di verifica rapidi**
+------------------------------
+## Locali
+### 1) Routing (AS100 + inter-AS)
 
----
-
-## 1) Routing (AS100 + inter-AS)
-
-### OSPF (R101/R102/R103)
-
+#### OSPF (R101/R102/R103)
 ```bash
 vtysh -c "show ip ospf neighbor"
 # vedo se le adiacenze OSPF sono UP (FULL) sui link p2p
@@ -80,40 +78,32 @@ vtysh -c "show ip route ospf"
 # verifico che le rotte OSPF vengano installate in tabella
 ```
 
-### BGP (AS100 iBGP + eBGP)
-
+#### BGP (AS100 iBGP + eBGP)
 ```bash
 vtysh -c "show ip bgp summary"
 # controllo che le sessioni BGP siano Established
 ```
 
 Su R103 (eBGP verso AS200 peer 10.0.31.2):
-
 ```bash
 vtysh -c "show ip bgp neighbors 10.0.31.2"
 # verifico dettagli della sessione eBGP con AS200
 ```
 
 Controllo “che cosa sto annunciando / ricevendo” (molto utile quando hai filtri prefix-list):
-
 ```bash
 vtysh -c "show ip bgp neighbors 10.0.31.2 advertised-routes"
 # verifico che R103 annunci SOLO 1.0.0.0/8 verso AS200
 ```
 
 Su R201 (AS200, peer verso AS100 = 10.0.31.1):
-
 ```bash
 vtysh -c "show ip bgp neighbors 10.0.31.1 advertised-routes"
 # verifico che R201 annunci SOLO 2.0.0.0/8 verso AS100
 ```
 
----
-
-## 2) DNS + DNSSEC + HTTP (DMZ = 2.80.200.3)
-
+### 2) DNS + DNSSEC + HTTP (DMZ = 2.80.200.3)
 Da un host che può raggiungere la DMZ (es. LAN-client in LAN2):
-
 ```bash
 dig @2.80.200.3 www.nsdcourse.xyz
 # verifico che il DNS risponda correttamente 
@@ -125,52 +115,39 @@ dig +dnssec @2.80.200.3 www.nsdcourse.xyz
 ```
 
 HTTP:
-
 ```bash
 wget http://www.nsdcourse.xyz
 # verifico rapidamente che risponda 
 ```
 
----
-
-## 3) IPsec Customer (CE1 ↔ CE2) — child: `lan-lan`
-
+### 3) IPsec Customer (CE1 ↔ CE2) — child: `lan-lan`
 * Endpoint pubblici: **CE1 1.0.101.2** ↔ **CE2 1.0.102.2**
 * Traffico protetto: **192.168.10.0/24 ↔ 192.168.20.0/24**
 
 Su **CE1 e CE2**:
-
 ```bash
 swanctl --list-sas
 # vedo se le SA sono UP (IKE + CHILD) e con i TS giusti
 ```
 
----
-
-## 4) IPsec Enterprise (R202 ↔ eFW) — child: `lan-lan`
-
+### 4) IPsec Enterprise (R202 ↔ eFW) — child: `lan-lan`
 * Endpoint: **R202 2.0.202.2** ↔ **eFW 2.80.200.2**
 * Traffico protetto: **LAN3 10.202.3.0/24 ↔ LAN1 10.200.1.0/24**
 * Central node: **10.202.3.10**
 * AV: **10.200.1.11 / .12 / .13**
 
 Su **R202 e eFW**:
-
 ```bash
 swanctl --list-sas
 # verifico che la SA del tunnel enterprise sia attiva
 ```
 
----
-
-## 5) MACsec (Site2 LAN) — interfaccia `macsec0`
-
+### 5) MACsec (Site2 LAN) — interfaccia `macsec0`
 * CE2 macsec0: **192.168.20.1/24**
 * B1: **192.168.20.10/24**
 * B2: **192.168.20.11/24**
 
 Su CE2/B1/B2:
-
 ```bash
 ip link show macsec0
 # vedo se macsec0 esiste ed è UP
@@ -181,28 +158,20 @@ ip -s link show macsec0
 # controllo che i contatori RX/TX aumentino (traffico cifrato ok)
 ```
 
----
-
-## 6) Firewall (GW200 / eFW / iFW) — verifica rapida contatori
-
+### 6) Firewall (GW200 / eFW / iFW) — verifica rapida contatori
 Su ciascun firewall:
-
 ```bash
 iptables -L -v -n
 # vedo policy + contatori (capisci subito cosa sta matchando)
 ```
 
-Se usi NAT (GW200 ce l’ha):
-
+Se usi NAT (GW200):
 ```bash
 iptables -t nat -L -v -n
 # verifico che il masquerade stia effettivamente lavorando
 ```
-
-
-
-## Base rete
-
+## Globali
+### Base rete
 ```bash
 ip a          # IP interfacce
 ip link       # stato UP/DOWN
@@ -210,20 +179,17 @@ ip route      # tabella routing
 ip route get <IP>   # next-hop + interfaccia scelta
 ```
 
-## Test connettività
-
+### Test connettività
 ```bash
 ping -c 3 <IP>            # reachability
 ping -c 3 -I <IF> <IP>    # reachability da interfaccia
 traceroute  <IP>        # hop del percorso
 ```
 
-## Layer 2 / vicini
-
+### Layer 2 / vicini
 ```bash
 ip neigh     # ARP/neighbor table
 ```
-
 
 ---
 
