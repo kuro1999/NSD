@@ -1,7 +1,7 @@
  # VPN IPsec (strongSwan)
 
  ## Enterprise VPN (R202 <-> eFW)
- - Endpoint R202: 10.0.202.2 (eth0)
+ - Endpoint R202: 2.0.202.2 (eth0)
  - Endpoint eFW: 2.80.200.2 (eth0)
  - Protected subnets:
    - LAN3: 10.202.3.0/24

@@ -11,6 +11,6 @@
 - Web raggiungibile via www.nsdcourse.xyz
 
 ## Test
-- `dig @2.80.200.3 nsdcourse.xyz SOA`
-- `dig +dnssec @2.80.200.3 www.nsdcourse.xyz A`
-- `curl http://www.nsdcourse.xyz` da LAN-client (10.200.2.10)
+- `dig @2.80.200.3 nsdcourse.xyz`
+- `dig +dnssec @2.80.200.3 www.nsdcourse.xyz`
+- `wget http://www.nsdcourse.xyz` da LAN-client (10.200.2.10)
