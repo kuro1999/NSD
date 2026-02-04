@@ -1,4 +1,4 @@
-# Test plan (dimostrazione requisiti)
+# Test plan
 
 ## 1. Routing
 ### OSPF (AS100)
@@ -47,15 +47,3 @@
 ## 7. AV sandbox
 - esecuzione completa: invio file -> scansioni -> report
 - ripristino runner e rerun (dimostrare “clean state”)
-
-## Output da salvare
-Salvare tutti gli output in `evidence/` con naming coerente:
-- `evidence/01-routing-ospf.txt`
-- `evidence/02-routing-bgp.txt`
-- `evidence/03-dnssec-dig.txt`
-- `evidence/04-http-curl.txt`
-- `evidence/05-firewall-tests.txt`
-- `evidence/06-ipsec-enterprise.txt`
-- `evidence/07-macsec.txt`
-- `evidence/08-ipsec-customer.txt`
-- `evidence/09-av-sandbox.txt`
