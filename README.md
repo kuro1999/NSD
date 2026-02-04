@@ -1,31 +1,6 @@
 NSD Project `2025/26` (GNS3)
 ================================
 
-Architettura e Obiettivi del Progetto
--------------------------------------
-
-La presente documentazione descrive il progetto del corso di **Network and System Defense (NSD)** `2025/26` implementato su piattaforma **GNS3**. L’architettura di rete realizzata rappresenta uno scenario multi-dominio con due Autonomous System interconnessi (`AS100` e `AS200`) e include numerose componenti di **routing** e **sicurezza** avanzate. L’obiettivo è progettare e configurare una rete sicura che integri routing dinamico e meccanismi di difesa a più livelli, garantendo la connettività tra sedi diverse e la protezione dei servizi critici. In particolare, la topologia comprende i seguenti elementi principali:
-
-*   **`AS100` (Provider)** – Backbone con tre router FRR (`R101`, `R102`, `R103`) che eseguono routing dinamico interno tramite OSPF (area 0) e iBGP (full-mesh tra i border router), oltre a un peering eBGP esterno con `AS200`. `AS100` funge anche da **provider** per un cliente con due sedi remote (Site1 e Site2), alle quali assegna indirizzi pubblici dedicati e connettività tramite link dedicati (subnet `/30`) verso i router customer edge `CE1` e `CE2`.
-    ![AS100](docs/image/AS100.png)
-*   **`AS200` (Enterprise)** – Rete di un’organizzazione enterprise connessa lateralmente ad `AS100`. Include i router `R201` (border BGP verso `AS100`), `R202` (router interno) e `GW200` (gateway perimetrale). Internamente, `AS200` utilizza rotte statiche/default (`R202` e `GW200` instradano il traffico tramite `R201`).
-    ![AS200](docs/image/AS200.png)
-*   **Enterprise Network (`AS200`)** – Comprende diverse sotto reti locali protette da firewall: una **DMZ** (Demilitarized Zone) su cui risiede un server DNS autorevole con **DNSSEC** attivo e un server web Apache (raggiungibile all’URL _www.nsdcourse.xyz_), una **`LAN1`** interna che ospita diversi nodi **antivirus (`AV`)**, una **`LAN2`** con client utente e una **`LAN3`** con un nodo di controllo centrale. Il firewall perimetrale esterno `eFW` gestisce il traffico tra `DMZ` e `LAN1`, mentre un firewall interno `iFW` separa `LAN1` e `LAN2`.
-    ![Enterprise Net](docs/image/Enterprise_Net.png)
-*   **Security Policy (`Firewall`)** – Viene implementata una politica di firewalling **stateful** secondo le specifiche di progetto: il firewall esterno (`eFW`) e il gateway `GW200` consentono in ingresso dalla rete esterna _solo_ il traffico DNS e HTTP destinato al server DNS/Web in DMZ, oltre al traffico VPN IPsec verso `eFW`. Il firewall interno (`iFW`) limita il traffico tra le LAN interne secondo criteri di minima esposizione: ad esempio, il client in `LAN2` può uscire solo verso Internet/DMZ con connessioni originate internamente (policy **outbound only**), e gli host AV in `LAN1` sono isolati tra loro permettendo solo comunicazioni con il `central-node` in `LAN3` (instradate via VPN). Tutto il traffico non esplicitamente consentito è bloccato.
-*   **`VPN IPsec` (Enterprise)** – Connessione **site-to-site** tra `R202` (`AS200`) e `eFW` (firewall esterno in `DMZ`) per proteggere la comunicazione end-to-end tra la `LAN3` (`central-node`) e `LAN1` (AV). Implementazione basata su **strongSwan** in modalità tunnel con configurazione tramite _swanctl_ (PSK pre-condivisa).
-*   **`VPN IPsec` (Customer)** – Connessione **site-to-site** tra i router customer edge `CE1` (Site1) e `CE2` (Site2) del cliente (collegati ad `AS100`) per garantire connettività sicura tra le due sedi remote attraverso la rete del provider. Anch’essa realizzata con strongSwan (PSK) in modalità tunnel.
-    ![VPN](docs/image/CE1_CE2.png)
-*   **`MACsec` con MKA** – Cifratura e integrità a livello **Layer2** sulla LAN del Site2 (tra `CE2`, `client-B1` e `client-B2`) tramite il protocollo MACsec (IEEE 802.1AE) con gestione chiavi automatizzata (**MKA**). Questa misura protegge il traffico locale nel segmento di Site2 da potenziali attacchi L2 (sniffing, man-in-the-middle). L’implementazione utilizza _wpa\_supplicant_ con chiavi pre-condivise per creare un’interfaccia crittografata `macsec0` su ciascun nodo della LAN, spostando lì gli indirizzi IP della rete locale.
-    ![VPN2](docs/image/VPN2.png)
-*   **`Antivirus` Sandbox (`LAN1` & `LAN3`)** – Un’infrastruttura di sandbox distribuita per l’**analisi di malware**: tre nodi “runner” (`AV1`, `AV2`, `AV3` in `LAN1`) ciascuno con un diverso software antivirus, e un nodo centrale di orchestrazione (`central-node` in `LAN3`). L’utente può inviare un file sospetto al central-node, il quale lo distribuisce ai runner AV per la scansione; i risultati sono poi raccolti e riportati all’utente. L’intera comunicazione tra il `central-node` e i runner AV avviene cifrata attraverso la VPN IPsec enterprise (`LAN3` ↔ `LAN1`).
-    ![LAN3](docs/image/LAN3.png)
-    ![LAN1](docs/image/LAN1.png)
-
-In sintesi, il progetto fornisce un ambiente di rete completo con **routing dinamico** tra domini e sotto reti, **segmentazione** tramite `DMZ` e firewall, **servizi sicuri** (DNSSEC, web) per utenti esterni, **comunicazioni cifrate** tra sedi (VPN, MACsec) e un sistema di **sandbox AV** per la sicurezza pro attiva. La sezione seguente illustra la topologia e, successivamente, vengono dettagliati i singoli aspetti con indicazioni tecniche, comandi di verifica e riferimenti alla documentazione di supporto.
-
-* * *
-
 Topologia
 ---------
 
@@ -61,6 +36,32 @@ Topologia
 *   `br3` – switch/bridge `LAN2`
 
 * * *
+
+Architettura e Obiettivi del Progetto
+-------------------------------------
+
+La presente documentazione descrive il progetto del corso di **Network and System Defense (NSD)** `2025/26` implementato su piattaforma **GNS3**. L’architettura di rete realizzata rappresenta uno scenario multi-dominio con due Autonomous System interconnessi (`AS100` e `AS200`) e include numerose componenti di **routing** e **sicurezza** avanzate. L’obiettivo è progettare e configurare una rete sicura che integri routing dinamico e meccanismi di difesa a più livelli, garantendo la connettività tra sedi diverse e la protezione dei servizi critici. In particolare, la topologia comprende i seguenti elementi principali:
+
+*   **`AS100` (Provider)** – Backbone con tre router FRR (`R101`, `R102`, `R103`) che eseguono routing dinamico interno tramite OSPF (area 0) e iBGP (full-mesh tra i border router), oltre a un peering eBGP esterno con `AS200`. `AS100` funge anche da **provider** per un cliente con due sedi remote (Site1 e Site2), alle quali assegna indirizzi pubblici dedicati e connettività tramite link dedicati (subnet `/30`) verso i router customer edge `CE1` e `CE2`.
+    ![AS100](docs/image/AS100.png)
+*   **`AS200` (Enterprise)** – Rete di un’organizzazione enterprise connessa lateralmente ad `AS100`. Include i router `R201` (border BGP verso `AS100`), `R202` (router interno) e `GW200` (gateway perimetrale). Internamente, `AS200` utilizza rotte statiche/default (`R202` e `GW200` instradano il traffico tramite `R201`).
+    ![AS200](docs/image/AS200.png)
+*   **Enterprise Network (`AS200`)** – Comprende diverse sotto reti locali protette da firewall: una **DMZ** (Demilitarized Zone) su cui risiede un server DNS autorevole con **DNSSEC** attivo e un server web Apache (raggiungibile all’URL _www.nsdcourse.xyz_), una **`LAN1`** interna che ospita diversi nodi **antivirus (`AV`)**, una **`LAN2`** con client utente e una **`LAN3`** con un nodo di controllo centrale. Il firewall perimetrale esterno `eFW` gestisce il traffico tra `DMZ` e `LAN1`, mentre un firewall interno `iFW` separa `LAN1` e `LAN2`.
+    ![Enterprise Net](docs/image/Enterprise_Net.png)
+*   **Security Policy (`Firewall`)** – Viene implementata una politica di firewalling **stateful** secondo le specifiche di progetto: il firewall esterno (`eFW`) e il gateway `GW200` consentono in ingresso dalla rete esterna _solo_ il traffico DNS e HTTP destinato al server DNS/Web in DMZ, oltre al traffico VPN IPsec verso `eFW`. Il firewall interno (`iFW`) limita il traffico tra le LAN interne secondo criteri di minima esposizione: ad esempio, il client in `LAN2` può uscire solo verso Internet/DMZ con connessioni originate internamente (policy **outbound only**), e gli host AV in `LAN1` sono isolati tra loro permettendo solo comunicazioni con il `central-node` in `LAN3` (instradate via VPN). Tutto il traffico non esplicitamente consentito è bloccato.
+*   **`VPN IPsec` (Enterprise)** – Connessione **site-to-site** tra `R202` (`AS200`) e `eFW` (firewall esterno in `DMZ`) per proteggere la comunicazione end-to-end tra la `LAN3` (`central-node`) e `LAN1` (AV). Implementazione basata su **strongSwan** in modalità tunnel con configurazione tramite _swanctl_ (PSK pre-condivisa).
+*   **`VPN IPsec` (Customer)** – Connessione **site-to-site** tra i router customer edge `CE1` (Site1) e `CE2` (Site2) del cliente (collegati ad `AS100`) per garantire connettività sicura tra le due sedi remote attraverso la rete del provider. Anch’essa realizzata con strongSwan (PSK) in modalità tunnel.
+    ![VPN](docs/image/CE1_CE2.png)
+*   **`MACsec` con MKA** – Cifratura e integrità a livello **Layer2** sulla LAN del Site2 (tra `CE2`, `client-B1` e `client-B2`) tramite il protocollo MACsec (IEEE 802.1AE) con gestione chiavi automatizzata (**MKA**). Questa misura protegge il traffico locale nel segmento di Site2 da potenziali attacchi L2 (sniffing, man-in-the-middle). L’implementazione utilizza _wpa\_supplicant_ con chiavi pre-condivise per creare un’interfaccia crittografata `macsec0` su ciascun nodo della LAN, spostando lì gli indirizzi IP della rete locale.
+    ![VPN2](docs/image/VPN2.png)
+*   **`Antivirus` Sandbox (`LAN1` & `LAN3`)** – Un’infrastruttura di sandbox distribuita per l’**analisi di malware**: tre nodi “runner” (`AV1`, `AV2`, `AV3` in `LAN1`) ciascuno con un diverso software antivirus, e un nodo centrale di orchestrazione (`central-node` in `LAN3`). L’utente può inviare un file sospetto al central-node, il quale lo distribuisce ai runner AV per la scansione; i risultati sono poi raccolti e riportati all’utente. L’intera comunicazione tra il `central-node` e i runner AV avviene cifrata attraverso la VPN IPsec enterprise (`LAN3` ↔ `LAN1`).
+    ![LAN3](docs/image/LAN3.png)
+    ![LAN1](docs/image/LAN1.png)
+
+In sintesi, il progetto fornisce un ambiente di rete completo con **routing dinamico** tra domini e sotto reti, **segmentazione** tramite `DMZ` e firewall, **servizi sicuri** (DNSSEC, web) per utenti esterni, **comunicazioni cifrate** tra sedi (VPN, MACsec) e un sistema di **sandbox AV** per la sicurezza pro attiva. La sezione seguente illustra la topologia e, successivamente, vengono dettagliati i singoli aspetti con indicazioni tecniche, comandi di verifica e riferimenti alla documentazione di supporto.
+
+* * *
+
 Comandi di verifica rapidi
 --------------------------
 Di seguito alcuni comandi essenziali per verificare rapidamente lo stato delle principali funzionalità implementate.
