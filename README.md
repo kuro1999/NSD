@@ -9,7 +9,7 @@ Topologia
 ### Naming dei nodi
 
 **AS100**
-*   `R101`, `R102`, `R103` (router core – OSPF area 0, iBGP full-mesh)
+*   `R101`, `R102`, `R103` (router core – OSPF, iBGP full-mesh)
 
 **AS200**
 *   `R201`, `R202` (router enterprise), `GW200` (gateway edge enterprise)
@@ -42,7 +42,7 @@ Architettura e Obiettivi del Progetto
 
 La presente documentazione descrive il progetto del corso di **Network and System Defense (NSD)** `2025/26` implementato su piattaforma **GNS3**. L’architettura di rete realizzata rappresenta uno scenario multi-dominio con due Autonomous System interconnessi (`AS100` e `AS200`) e include numerose componenti di **routing** e **sicurezza** avanzate. L’obiettivo è progettare e configurare una rete sicura che integri routing dinamico e meccanismi di difesa a più livelli, garantendo la connettività tra sedi diverse e la protezione dei servizi critici. In particolare, la topologia comprende i seguenti elementi principali:
 
-*   **`AS100` (Provider)** – Backbone con tre router FRR (`R101`, `R102`, `R103`) che eseguono routing dinamico interno tramite OSPF (area 0) e iBGP (full-mesh tra i border router), oltre a un peering eBGP esterno con `AS200`. `AS100` funge anche da **provider** per un cliente con due sedi remote (Site1 e Site2), alle quali assegna indirizzi pubblici dedicati e connettività tramite link dedicati (subnet `/30`) verso i router customer edge `CE1` e `CE2`.
+*   **`AS100` (Provider)** – Backbone con tre router FRR (`R101`, `R102`, `R103`) che eseguono routing dinamico interno tramite OSPF e iBGP (full-mesh tra i border router), oltre a un peering eBGP esterno con `AS200`. `AS100` funge anche da **provider** per un cliente con due sedi remote (Site1 e Site2), alle quali assegna indirizzi pubblici dedicati e connettività tramite link dedicati (subnet `/30`) verso i router customer edge `CE1` e `CE2`.
     ![AS100](docs/image/AS100.png)
 *   **`AS200` (Enterprise)** – Rete di un’organizzazione enterprise connessa lateralmente ad `AS100`. Include i router `R201` (border BGP verso `AS100`), `R202` (router interno) e `GW200` (gateway perimetrale). Internamente, `AS200` utilizza rotte statiche/default (`R202` e `GW200` instradano il traffico tramite `R201`).
     ![AS200](docs/image/AS200.png)
@@ -69,7 +69,7 @@ Di seguito alcuni comandi essenziali per verificare rapidamente lo stato delle p
 ### Routing (AS100 e inter-AS)
 Da eseguire su ciascun router di `AS100` (`R101`, `R102`, `R103`):
 ```bash
-vtysh -c "show ip ospf neighbor"    # Verifica adiacenze OSPF area 0
+vtysh -c "show ip ospf neighbor"    # Verifica adiacenze OSPF
 vtysh -c "show ip bgp summary"      # Verifica sessioni iBGP/eBGP e stato BGP
 vtysh -c "show ip route"            # Verifica tabella di routing unificata`
 ```
