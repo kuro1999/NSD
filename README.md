@@ -194,7 +194,7 @@ ip neigh     # ARP/neighbor table
 ---
 
 
-Piano di indirizzamento (sintesi)
+Piano di indirizzamento
 ---------------------------------
 
 > Dettagli completi in: [`docs/01-addressing-plan.md`](./docs/01-addressing-plan.md)  
@@ -243,7 +243,7 @@ Piano di indirizzamento (sintesi)
 
 * * *
 
-Routing (sintesi)
+Routing
 -----------------
 > Documentazione di dettaglio e configurazioni: [`docs/02-routing.md`](./docs/02-routing.md)  
 > **Verifica:** utilizzare i comandi _vtysh_ mostrati sopra per controllare lo stato di OSPF e BGP.
@@ -257,7 +257,7 @@ Il dominio AS100 implementa un **IGP OSPF** per l’instradamento interno e un *
 
 * * *
 
-Firewall policy (sintesi)
+Firewall policy
 -------------------------
 
 > Descrizione estesa delle policy e flussi: [`docs/03-firewall-policy.md`](./docs/03-firewall-policy.md)  
