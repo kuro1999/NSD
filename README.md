@@ -304,7 +304,7 @@ Questo tunnel IPsec collega la `LAN3` di `AS200` (sede del _`central-node`_) con
 
 La configurazione strongSwan avviene tramite file **swanctl** su ciascun endpoint, definendo una connessione IKEv2 simmetrica. In particolare, `R202` è configurato con _local\_id_ "r202" e _remote\_id_ "efw", mentre `eFW` viceversa. Entrambi utilizzano la stessa suite crittografica (es. AES128-SHA256 con DH gruppo 14) e la stessa chiave pre-condivisa. Il child SA “lan-lan” include i traffici delle LAN indicate sopra. L’opzione `start_action = trap` fa sì che il tunnel si attivi automaticamente al primo traffico interessante.
 
->_La sezione `connections` definisce parametri IKE e IPSec, mentre `secrets` contiene la PSK condivisa. Configurazioni analoghe sono presenti lato opposto con ruoli invertiti. Vedere gli script [`scripts/out/ipsec/r202.sh`](scripts/out/ipsec/r202.sh)) e [`scripts/out/ipsec/efw.sh`](scripts/out/ipsec/efw.sh) per il setup completo._
+>_Configurazioni analoghe sono presenti lato opposto con ruoli invertiti. Vedere gli script [`scripts/out/ipsec/r202.sh`](scripts/out/ipsec/r202.sh)) e [`scripts/out/ipsec/efw.sh`](scripts/out/ipsec/efw.sh) per il setup completo._
 
 Una volta configurato e avviato **strongSwan** su entrambi i nodi, il tunnel viene stabilito automaticamente al passaggio di traffico tra central-node e AV. Si può verificare lo stato con `swanctl --list-sas`, che elencherà la SA IKE e la SA child attiva (nome “lan-lan”), confermando la cifratura dei pacchetti tra `10.202.3.0/24` e `10.200.1.0/24`.
 
@@ -315,7 +315,7 @@ Una differenza notevole è che qui i router CE non eseguono dynamic routing BGP 
 
 Anche in questo caso, dopo aver caricato le configurazioni con _swanctl_, il comando `swanctl --list-sas` su `CE1` e `CE2` mostrerà la SA attiva tra i due siti (indicando che il tunnel è stabilito). I client `client-A1` e `client-B*` potranno quindi comunicare tra loro (es. Ping da `192.168.10.10` a `192.168.20.10`) in modo sicuro attraverso la VPN, mentre il traffico è cifrato su Internet/`AS100`.
 
->_Vedere gli script di configurazione [`scripts/out/ipsec/ce1.sh`](scripts/out/ipsec/ce1.sh) e [`scripts/out/ipsec/ce2.sh`](scripts/out/ipsec/ce2.sh) per maggiori dettagli sulla configurazione IPsec dei router CE. I file generati includono definizioni analoghe a quelle mostrate sopra, con _id_ “ce1”/“ce2” e indirizzi locali/remoti appropriati._
+>_Vedere gli script di configurazione [`scripts/out/ipsec/ce1.sh`](scripts/out/ipsec/ce1.sh) e [`scripts/out/ipsec/ce2.sh`](scripts/out/ipsec/ce2.sh) per maggiori dettagli sulla configurazione IPsec dei router CE._
 
 * * *
 
