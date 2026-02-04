@@ -58,7 +58,7 @@ La presente documentazione descrive il progetto del corso di **Network and Syste
     ![LAN3](docs/image/LAN3.png)
     ![LAN1](docs/image/LAN1.png)
 
-In sintesi, il progetto fornisce un ambiente di rete completo con **routing dinamico** tra domini e sotto reti, **segmentazione** tramite `DMZ` e firewall, **servizi sicuri** (DNSSEC, web) per utenti esterni, **comunicazioni cifrate** tra sedi (VPN, MACsec) e un sistema di **sandbox AV** per la sicurezza pro attiva. La sezione seguente illustra la topologia e, successivamente, vengono dettagliati i singoli aspetti con indicazioni tecniche, comandi di verifica e riferimenti alla documentazione di supporto.
+In sintesi, il progetto fornisce un ambiente di rete completo con **routing dinamico** tra domini e sotto reti, **segmentazione** tramite `DMZ` e firewall, **servizi sicuri** (DNSSEC, web) per utenti esterni, **comunicazioni cifrate** tra sedi (VPN, MACsec) e un sistema di **sandbox AV** per la sicurezza pro attiva. Successivamente, vengono dettagliati i singoli aspetti con indicazioni tecniche e riferimenti alla documentazione di supporto.
 
 * * *
 
@@ -158,7 +158,7 @@ ip -s link show macsec0
 # controllo che i contatori RX/TX aumentino (traffico cifrato ok)
 ```
 
-### 6) Firewall (GW200 / eFW / iFW) — verifica rapida contatori
+### 6) Firewall (GW200 / eFW / iFW)
 Su ciascun firewall:
 ```bash
 iptables -L -v -n
@@ -245,8 +245,7 @@ Piano di indirizzamento
 
 Routing
 -----------------
-> Documentazione di dettaglio e configurazioni: [`docs/02-routing.md`](./docs/02-routing.md)  
-> **Verifica:** utilizzare i comandi _vtysh_ mostrati sopra per controllare lo stato di OSPF e BGP.
+> Documentazione di dettaglio e configurazioni: [`docs/02-routing.md`](./docs/02-routing.md)
 
 Il dominio AS100 implementa un **IGP OSPF** per l’instradamento interno e un **BGP** (iBGP/eBGP) per lo scambio di rotte sia all’interno dell’AS che con l’esterno:
 *   **OSPF (`AS100`):** i tre router `R101`, `R102`, `R103` formano un’area OSPF 0 comune, annunciando le reti di transito `/30` tra di loro e le rispettive loopback. Ogni router utilizza un router-id (RID) univoco corrispondente alla propria loopback (es. `1.255.0.x`). Tutte le interfacce sono impostate come _passive_ a eccezione dei link punto-punto verso gli altri router core (per ridurre il flooding OSPF solo alle interfacce coinvolte). 
@@ -260,8 +259,7 @@ Il dominio AS100 implementa un **IGP OSPF** per l’instradamento interno e un *
 Firewall policy
 -------------------------
 
-> Descrizione estesa delle policy e flussi: [`docs/03-firewall-policy.md`](./docs/03-firewall-policy.md)  
-> **Verifica:** ispezionare le regole attive su ogni firewall con `iptables -L -v -n` oppure effettuare test di connettività (es. dal `LAN-client` verificare che richieste consentite – DNS/HTTP verso `DMZ` – abbiano esito positivo, mentre traffico proibito venga bloccato).
+> Descrizione estesa delle policy e flussi: [`docs/03-firewall-policy.md`](./docs/03-firewall-policy.md)
 
 La **politica di sicurezza** è applicata tramite un firewall perimetrale esterno (`eFW`), un gateway edge (`GW200`) e un firewall interno (`iFW`), con regole _stateful_ che consentono solo i flussi esplicitamente autorizzati:
 *   **Ingresso dalla rete esterna verso DMZ/Enterprise:** consentito solo traffico **DNS** (UDP/TCP porta `53`) e **HTTP** (TCP porta `80`) destinato al server in `DMZ` (`DNS-server` – IP `2.80.200.3`), oltre al traffico **IPsec** verso il firewall esterno `eFW` (IP `2.80.200.2`) sulle porte UDP `500/4500` e protocollo ESP. Qualsiasi altro traffico in ingresso da `AS100`/Internet è scartato dai filtri su `GW200`/`eFW`. 
@@ -278,8 +276,7 @@ Le regole firewall sono implementate tramite script di configurazione `iptables`
 DMZ: DNS autorevole (DNSSEC) + HTTP web server
 ----------------------------------------------
 
-> Dettagli implementativi: [`docs/04-dns-dnssec-web.md`](./docs/04-dns-dnssec-web.md)  
-> **Verifica:** dal client interno (`LAN-client`) eseguire query DNS e richieste HTTP come mostrato nei _Comandi di verifica_ (sezione precedente) e controllare che la risoluzione DNS (con validazione DNSSEC) e l’accesso web funzionino correttamente.
+> Dettagli implementativi: [`docs/04-dns-dnssec-web.md`](./docs/04-dns-dnssec-web.md)
 
 In DMZ è presente un server denominato `DNS-server` (IP `2.80.200.3`) che svolge due funzioni: **DNS autoritativo** per il dominio _nsdcourse.xyz_ (con supporto **DNSSEC**) e **server web HTTP** (Apache) per il sito _www.nsdcourse.xyz_. Questo server rappresenta un punto di demarcazione nella zona pubblica (`DMZ`) accessibile dall’esterno, soggetto alle regole restrittive del firewall perimetrale.
 *   **DNS Autorevole con DNSSEC:** Il server DNS in DMZ risponde authoritative alle query per _nsdcourse.xyz_. La zona è firmata digitalmente mediante DNSSEC: sono stati generati coppie di chiavi KSK/ZSK (algoritmo ECDSA P-384) e i record **DNSKEY** sono stati inseriti nella zona, che viene poi firmata con _dnssec-signzone_. In questo modo, un resolver che effettua query con **DNSSEC enabled** (ad esempio usando `dig +dnssec`) può ricevere i record RRSIG e verificare l’autenticità della risposta. _(Nota: il dominio è fittizio e non delegato nella root DNS; non è quindi previsto l’inserimento di DS record in una zona padre – la verifica DNSSEC può essere simulata configurando il resolver locale con il trust anchor della zona firmata.)_
@@ -294,8 +291,7 @@ La risposta dovrebbe includere il record 'A' richiesto e i relativi record RRSIG
 VPN IPsec (Enterprise & Customer)
 ---------------------------------
 
-> Dettagli operativi e configurazioni: [`docs/05-vpn-ipsec.md`](docs/05-vpn-ipsec.md)  
-> **Verifica:** su ciascun endpoint IPsec eseguire `swanctl --list-sas` per elencare le Security Association attive. È inoltre possibile consultare i log di strongSwan o utilizzare `tcpdump` per vedere il traffico ESP incapsulato.
+> Dettagli operativi e configurazioni: [`docs/05-vpn-ipsec.md`](docs/05-vpn-ipsec.md)
 
 Sono implementati due tunnel **IPsec site-to-site**: uno tra la rete Enterprise (AS200) e la propria DMZ (Enterprise VPN), e uno tra le due sedi del Customer (Customer VPN). Entrambi utilizzano **strongSwan** (IKEv2) con autenticazione tramite PSK e sono configurati in modalità tunnel per cifrare interamente il traffico tra le sotto reti interessate.
 
@@ -333,15 +329,14 @@ Per gestire la distribuzione delle chiavi di crittografia MACsec, si utilizza il
 
 AV Sandbox (analisi antivirus distribuita)
 ------------------------------------------
-> Dettagli e configurazione: [`docs/07-av-sandbox.md`](docs/07-av-sandbox.md)  
-> **Verifica:** seguire il piano di test descritto in [`docs/08-test-plan.md`](docs/08-test-plan.md) – ad esempio, caricare un file di prova sul central-node e verificare che i runner AV lo analizzino e che un report venga generato.
+> Dettagli e configurazione: [`docs/07-av-sandbox.md`](docs/07-av-sandbox.md)
 
 Nel segmento LAN1 dell’Enterprise è implementata una **sandbox antivirus** multi-nodo, orchestrata tramite il nodo centrale in `LAN3`. L’obiettivo è disporre di un ambiente sicuro in cui eseguire file potenzialmente malevoli su diversi motori antivirus, senza rischiare la rete di produzione, e con la possibilità di riportare i sistemi di analisi a uno stato pulito dopo ogni test.
 *   **Central Node (Orchestrator):** Il `central-node` (in `LAN3`) funge da controller: espone un’interfaccia (es. uno script o servizio web) attraverso cui un amministratore può caricare un file da analizzare. Quando un nuovo sample viene inserito, il central-node lo distribuisce ai vari nodi AV nella `LAN1` tramite la connessione VPN sicura. Inoltre, raccoglie gli esiti delle scansioni da ogni AV e genera un **report** complessivo dei risultati, da restituire all’amministratore. Il `central-node` ha visibilità su `LAN3` e, tramite la VPN IPsec, su `LAN1`, ma è isolato da altre reti (non può raggiungere Internet se non necessario). 
 *   **AV Runner Nodes:** I tre nodi `AV1`, `AV2`, `AV3` in `LAN1` sono container o VM ognuno con installato un diverso software antivirus. Essi ricevono dal `central-node` il file da analizzare, lo esaminano (ad esempio eseguendo una scansione con il proprio motore AV o eventualmente eseguendo il file in un ambiente controllato) e rinviano i risultati al central-node. Per sicurezza, questi runner non hanno accesso alla rete al di fuori della comunicazione con il central-node (bloccata dai firewall, consentita solo tramite VPN IPsec verso LAN3). In aggiunta, dopo ogni ciclo di analisi **ogni AV node viene riportato allo stato iniziale**: ciò è ottenuto tramite snapshot (funzionalità di GNS3/Docker, o reboot script) che ripristina la macchina virtuale al _clean state_. Questo assicura che eventuali effetti collaterali dell’esecuzione del malware (in caso di sample realmente infetto) vengano eliminati prima del test successivo. 
 
 L’infrastruttura AV sandbox è quindi costituita da una **pipeline**: upload del file → distribuzione ai nodi AV → scansione/esecuzione isolata → raccolta risultati → ripristino dei nodi. Dal punto di vista della configurazione, esistono script (in [`scripts/out/av/`](scripts/out/av)) per predisporre l’ambiente AV (installazione degli antivirus sui container `AV1`-`AV3`, script di reset etc.) E per orchestrare le comunicazioni. Ad esempio, il central-node può utilizzare uno script `test.sh` per automatizzare l’invio del file ai runner (es. Tramite scp) e la raccolta dei log di scansione. Ogni runner AV può avere uno script di avvio (`av1.sh`, `av2.sh`, etc.) che prepara l’ambiente (aggiorna le signature AV, imposta snapshot baseline, ecc.).
-**Dimostrazione attesa:** per validare la sandbox, si procede con un caso di prova. L’amministratore carica, ad esempio, un file di EICAR (simulatore di virus) sul central-node. Il `central-node` invia il file a ciascun AV runner e ne comanda la scansione. Ciascun AV rileva (o meno) la minaccia e restituisce un esito – tipicamente gli AV dovrebbero riconoscere EICAR come _test virus_. Il central-node raccoglie queste informazioni e le combina in un report unico, segnalando quali AV hanno rilevato il file come malevolo. Infine, si verifica che i runner siano stati **riavviati/ripristinati** allo stato pulito (ad esempio, controllando che eventuali file temporanei o processi aperti durante la scansione non persistano). L’output completo di un test riuscito, con i messaggi di log della pipeline (invio file, risultati, reset), è fornito in [`docs/08-test-plan.md`](docs/08-test-plan.md).
+**Dimostrazione attesa:** per validare la sandbox, si procede con un caso di prova. L’amministratore carica, ad esempio, un file di EICAR (simulatore di virus) sul central-node. Il `central-node` invia il file a ciascun AV runner e ne comanda la scansione. Ciascun AV rileva (o meno) la minaccia e restituisce un esito – tipicamente gli AV dovrebbero riconoscere EICAR come _test virus_. Il central-node raccoglie queste informazioni e le combina in un report unico, segnalando quali AV hanno rilevato il file come malevolo. Infine, si verifica che i runner siano stati **riavviati/ripristinati** allo stato pulito (ad esempio, controllando che eventuali file temporanei o processi aperti durante la scansione non persistano).
 
 >_NB: L’intera comunicazione tra central-node e AV avviene all’interno del tunnel IPsec enterprise, garantendo riservatezza e integrità. Inoltre, grazie alle regole firewall, i nodi AV non possono comunicare tra loro né con altri host se non attraverso il central-node, confinando qualsiasi incidente di sicurezza all’interno della sandbox._
 
