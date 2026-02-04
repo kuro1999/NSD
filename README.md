@@ -76,8 +76,8 @@ vtysh -c "show ip route"            # Verifica tabella di routing unificata`
 ### Servizi DMZ (DNSSEC + HTTP)
 Da un host interno con accesso `DMZ` (es. `LAN-client` in `LAN2`):
 ```bash
-dig +dnssec @2.80.200.3 www.nsdcourse.xyz A   # Query DNS con verifica DNSSEC
-curl -v http://www.nsdcourse.xyz             # Richiesta HTTP al web server in DMZ`
+dig +dnssec @2.80.200.3 www.nsdcourse.xyz    # Query DNS con verifica DNSSEC
+wget http://www.nsdcourse.xyz                # Richiesta HTTP al web server in DMZ`
 ```
 ### VPN IPsec Enterprise (R202 ↔ eFW)
 Su `R202` **e** `eFW` (estremi VPN enterprise):
