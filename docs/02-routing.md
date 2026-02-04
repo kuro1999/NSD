@@ -25,12 +25,12 @@
   - R201: 10.0.31.2
 
 ## AS200 (no IGP)
-- R202: default route -> R201 (10.0.202.1)
-- GW200: default route -> R201 (10.0.200.1)
+- R202: default route -> R201 (2.0.202.1)
+- GW200: default route -> R201 (2.0.200.1)
 - R201: static route verso:
-  - 10.202.3.0/24 via 10.0.202.2
-  - 2.80.200.0/24 via 10.0.200.2
-  - (se necessario) 10.200.1.0/24 e 10.200.2.0/24 via 10.0.200.2
+  - 10.202.3.0/24 via 2.0.202.2
+  - 2.80.200.0/24 via 2.0.200.2
+  - (se necessario) 10.200.1.0/24 e 10.200.2.0/24 via 2.0.200.2
 
 ## Annunci BGP minimi
 - AS200 annuncia: 2.80.200.0/24 (DMZ) (+ opzionale 2.255.0.1/32)
