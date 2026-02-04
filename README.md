@@ -284,20 +284,8 @@ DMZ: DNS autorevole (DNSSEC) + HTTP web server
 In DMZ è presente un server denominato `DNS-server` (IP `2.80.200.3`) che svolge due funzioni: **DNS autoritativo** per il dominio _nsdcourse.xyz_ (con supporto **DNSSEC**) e **server web HTTP** (Apache) per il sito _www.nsdcourse.xyz_. Questo server rappresenta un punto di demarcazione nella zona pubblica (`DMZ`) accessibile dall’esterno, soggetto alle regole restrittive del firewall perimetrale.
 *   **DNS Autorevole con DNSSEC:** Il server DNS in DMZ risponde authoritative alle query per _nsdcourse.xyz_. La zona è firmata digitalmente mediante DNSSEC: sono stati generati coppie di chiavi KSK/ZSK (algoritmo ECDSA P-384) e i record **DNSKEY** sono stati inseriti nella zona, che viene poi firmata con _dnssec-signzone_. In questo modo, un resolver che effettua query con **DNSSEC enabled** (ad esempio usando `dig +dnssec`) può ricevere i record RRSIG e verificare l’autenticità della risposta. _(Nota: il dominio è fittizio e non delegato nella root DNS; non è quindi previsto l’inserimento di DS record in una zona padre – la verifica DNSSEC può essere simulata configurando il resolver locale con il trust anchor della zona firmata.)_
 *   **Web Server HTTP:** Sullo stesso host gira un servizio Apache2 che ospita una semplice pagina web, resa disponibile all’URL `http://www.nsdcourse.xyz`. Nel file DNS, _www_ è configurato come record A che punta all’IP del DNS-server stesso, così da risolvere il nome e consentire al client di raggiungere il sito tramite la `DMZ`. Il traffico HTTP in ingresso (porta `80`) è filtrato dal firewall `GW200` e inoltrato solo se destinato al server in `DMZ`. Il client interno (`LAN-client`) può quindi effettuare richieste HTTP verso _www.nsdcourse.xyz_ passando attraverso i firewall (che permettono tale traffico in uscita essendo originato dalla LAN interna).
-
-Configurazione DNS principale (estratto semplificato): il dominio _nsdcourse.xyz_ è definito come zona master nel Bind **named** del DNS-server, con i record necessari e la firma DNSSEC applicata. Ad esempio, nel file di zona si trovano i record NS e A, e dopo la firma compaiono anche i record DNSSEC (DNSKEY, RRSIG, etc.). Nel _named.conf_ del server è specificato l’uso del file di zona firmato:
-```bash
-zone "nsdcourse.xyz" {
-  type master;
-  file "/etc/bind/db.nsdcourse.xyz.signed";  # Zona firmata con DNSSEC
-};
 ```
 >_Vedere [`scripts/out/dns/`](./scripts/out/dns) per gli script e file di configurazione DNS: ad esempio `named.conf.local`, `db.nsdcourse.xyz`, e lo script di inizializzazione DNSSEC._
-
-**Test:** per verificare il funzionamento, dal `LAN-client` si esegue una query DNS con dig includendo l’opzione `+dnssec` e specificando come server autoritativo 2.80.200.3, ad esempio:
-
-```bash
-dig +dnssec @2.80.200.3 www.nsdcourse.xyz A`
 ```
 La risposta dovrebbe includere il record 'A' richiesto e i relativi record RRSIG. Successivamente, un semplice `curl http://www.nsdcourse.xyz` dovrebbe restituire il contenuto della pagina web di test ospitata su DNS-server (verificando che la risoluzione DNS e la reachability HTTP siano corrette). Entrambi i test confermano il corretto setup di DNSSEC e del servizio web in DMZ.
 
