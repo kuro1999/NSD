@@ -12,11 +12,13 @@ interface eth0
 exit
 interface eth1
  no ip address
- ip address 10.0.202.1/30
+ ip address 2.0.202.1/30
+ 
 exit
 interface eth2
  no ip address
- ip address 10.0.200.1/30
+ # Sostituisci la vecchia config 10.0.200.1 con questa:
+ ip address 2.0.200.1/30
 exit
 end
 write memory

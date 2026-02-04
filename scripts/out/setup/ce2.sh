@@ -10,5 +10,11 @@ ip route replace default via 1.0.102.1
 ip addr flush dev eth0 || true
 ip addr add 192.168.20.1/24 dev eth0
 ip link set eth0 up
-iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+
 echo "nameserver 2.80.200.3" > /etc/resolv.conf
+
+# Pulisci tutto
+iptables -t nat -F
+
+# Unica regola
+iptables -t nat -A POSTROUTING -o eth1 ! -d 192.168.10.0/24 -j MASQUERADE

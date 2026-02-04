@@ -41,5 +41,6 @@ while true; do
 
     nc -w 2 $CENTRAL_NODE_IP 9003 < report.txt
 
+    rm -f binary report.txt
     echo "[AV3] Ciclo completato."
 done

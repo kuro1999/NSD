@@ -3,7 +3,7 @@ set -euo pipefail
 
 mkdir -p /etc/swanctl/conf.d
 
-cat > /etc/swanctl/conf.d/ipsec.conf <<'EOF2'
+cat > /etc/swanctl/conf.d/ipsec.conf <<'EOF'
 connections {
   ce2-ce1 {
     local_addrs  = 1.0.102.2
@@ -40,12 +40,12 @@ secrets {
     secret = "nsd-ce1-ce2-psk-2026"
   }
 }
-EOF2
+EOF
 
 # Avvio/Riavvio servizi
 echo ">>> Riavvio ipsec..."
 service ipsec restart || ipsec restart
-
+sleep 2
 # Caricamento configurazioni
 echo ">>> Caricamento credenziali e connessioni..."
 swanctl --load-creds
