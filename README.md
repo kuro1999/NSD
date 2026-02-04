@@ -270,29 +270,8 @@ La **politica di sicurezza** è applicata tramite un firewall perimetrale estern
 *   **NAT:** Il gateway `GW200` effettua NAT (masquerading) per il traffico originato dalle reti enterprise verso l’esterno (ad esempio, la `DMZ` o `LAN2` che accedono a Internet tramite `AS100` useranno come sorgente l’IP pubblico di `GW200`). Ciò assicura che le risposte tornino correttamente e nasconde gli IP interni.
 
 Le regole firewall sono implementate tramite script di configurazione `iptables` su macchine Linux. Di seguito un estratto di configurazione di `GW200` che illustra la politica di default restrittiva e alcune regole chiave (stateful inspection e aperture mirate):
-```bash
-# Politica di default: DROP su INPUT/FORWARD, ACCEPT su OUTPUT
-iptables -P INPUT DROP
-iptables -P FORWARD DROP
-iptables -P OUTPUT ACCEPT
 
-# Regola stateful generale (consente pacchetti di risposta)
-iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# Regole DMZ/servizi consentiti (Internet -> DMZ)
-iptables -A FORWARD -i eth0 -d 2.80.200.3 -p udp --dport 53 -j ACCEPT    # DNS
-iptables -A FORWARD -i eth0 -d 2.80.200.3 -p tcp --dport 80 -j ACCEPT    # HTTP
-iptables -A FORWARD -i eth0 -d 2.80.200.2 -p udp --dport 500 -j ACCEPT   # IPsec (IKE)
-iptables -A FORWARD -i eth0 -d 2.80.200.2 -p udp --dport 4500 -j ACCEPT  # IPsec (NAT-T)
-iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT               # IPsec (ESP)
-
-# Regola LAN2 -> Internet (consenti traffico uscente di LAN-client)
-iptables -A FORWARD -i eth1 -o eth0 -s 10.200.2.0/24 -j ACCEPT
-
-# NAT: masquerade su traffico in uscita verso Internet (eth0)
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE`
-```
->_Nell’estratto: `eth0` indica l’interfaccia di `GW200` verso `R201`/`AS100`, e `eth1` l’interfaccia interna verso `DMZ`/LAN. Configurazioni simili sono applicate su `eFW` e `iFW` secondo la policy prevista – vedi script in [`scripts/out/firewall/`](scripts/out/firewall)._
+>_Per le configurazioni vedi script in [`scripts/out/firewall/`](scripts/out/firewall)._
 
 * * *
 
