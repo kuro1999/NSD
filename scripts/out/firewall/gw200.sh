@@ -41,7 +41,5 @@ iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT
 # Lascia uscire la DMZ per aggiornamenti
 iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
 
-# --- NAT (Masquerade) ---
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
 echo "Firewall GW200 applicato."

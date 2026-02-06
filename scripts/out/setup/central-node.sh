@@ -16,7 +16,6 @@ ip route del default
 ip route add default via 192.168.122.1 dev eth1
 
 # 3. [FONDAMENTALE] Riaggiungi la rotta per la rete interna
-# Diciamo: "Tutto ciÃ² che inizia con 10.x.x.x mandalo al router interno (eth0)"
 # Sostituisci 10.202.3.1 con l'IP del tuo router interno se diverso
 ip route add 10.0.0.0/8 via 10.202.3.1 dev eth0
 

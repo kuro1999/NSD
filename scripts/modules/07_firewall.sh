@@ -49,8 +49,6 @@ iptables -A FORWARD -i eth0 -d 2.80.200.2 -p esp -j ACCEPT
 # Lascia uscire la DMZ per aggiornamenti
 iptables -A FORWARD -i eth1 -o eth0 -s 2.80.200.0/24 -j ACCEPT
 
-# --- NAT (Masquerade) ---
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
 echo "Firewall GW200 applicato."
 EOF
@@ -100,6 +98,9 @@ echo "--- Configurazione Firewall eFW ---"
  
   # REGOLA 3: Central Node (LAN3) verso Antivirus (LAN1)
   iptables -A FORWARD -s 10.202.3.0/24 -d 10.200.1.0/24 -j ACCEPT
+
+  # eFW maschera le LAN interne uscendo verso la DMZ/GW200
+  iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
  
   echo "Firewall eFW configurato."
   iptables -L -v -n
