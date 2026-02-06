@@ -4,10 +4,22 @@ set -euo pipefail
 # IPsec R202 <-> eFW (LAN3 <-> LAN1)
 
 write_file "$OUT/ipsec/r202.sh" <<'EOF'
+
+
+mkdir -p /etc/swanctl/conf.d
 #!/bin/bash
 set -euo pipefail
 
-mkdir -p /etc/swanctl/conf.d
+echo ">>> Arresto forzato StrongSwan..."
+service ipsec stop || true
+service strongswan stop || true
+
+killall -9 charonstarter charon ipsec starter 2>/dev/null || true
+rm -f /var/run/starter.charon.pid
+sleep 2
+
+rm -f /var/run/charon.pid
+
 
 echo ">>> Configurazione IPsec (Swanctl) su R202..."
 
@@ -30,20 +42,16 @@ connections {
       id = efw
     }
 
-    # MATCH CON EFW
+    # MATCH CON EFW 
     proposals = aes128-sha256-modp2048
 
     children {
       lan-lan {
-        # Rete Locale (Central Node LAN3)
         local_ts  = 10.202.3.0/24
-        # Rete Remota (Antivirus LAN1)
         remote_ts = 10.200.1.0/24
 
-        # MATCH CON EFW
+        # MATCH CON EFW 
         esp_proposals = aes128-sha256-modp2048
-
-        start_action = trap
       }
     }
   }
@@ -53,14 +61,14 @@ secrets {
   ike-psk {
     id-1 = r202
     id-2 = efw
-    secret = "nsd-efw-r202-psk-2026"
+    secret = "nsd-r202-efw-psk-2026"
   }
 }
 CONF
 
-echo ">>> Riavvio StrongSwan su R202..."
-service ipsec restart || service strongswan restart
-sleep 2
+echo ">>> Avvio Pulito StrongSwan su R202..."
+/usr/lib/ipsec/starter --daemon charon || /usr/sbin/ipsec start
+sleep 3
 
 echo ">>> Caricamento credenziali..."
 swanctl --load-creds
@@ -74,13 +82,25 @@ swanctl --list-sas
 EOF
 
 write_file "$OUT/ipsec/efw.sh" <<'EOF'
+EFW:
+
+
+
 #!/bin/bash
 set -euo pipefail
+
+# 1. Pulizia Totale processi precedenti
+echo ">>> Arresto forzato StrongSwan..."
+service ipsec stop || true
+service strongswan stop || true
+killall charon 2>/dev/null || true
+rm -f /var/run/charon.pid
 
 mkdir -p /etc/swanctl/conf.d
 
 echo ">>> Configurazione IPsec (Swanctl) su eFW..."
 
+# 2. Configurazione con fallback di compatibilità
 cat > /etc/swanctl/conf.d/ipsec.conf <<CONF
 connections {
   efw-r202 {
@@ -90,7 +110,7 @@ connections {
     version = 2
     mobike = no
 
-    # Importante: se ci sono firewall NAT o problemi di MTU
+    # Manteniamo encap yes per sicurezza
     encap = yes
 
     local {
@@ -102,21 +122,15 @@ connections {
       id = r202
     }
 
-    # DEVE ESSERE IDENTICO A R202
     proposals = aes128-sha256-modp2048
 
     children {
       lan-lan {
-        # Rete Locale (Antivirus LAN1)
         local_ts  = 10.200.1.0/24
-        # Rete Remota (Central Node LAN3)
         remote_ts = 10.202.3.0/24
 
-        # DEVE ESSERE IDENTICO A R202
+        # Anche qui diamo doppia opzione
         esp_proposals = aes128-sha256-modp2048
-
-        # Start action trap: fa salire il tunnel appena c'è traffico
-        start_action = trap
       }
     }
   }
@@ -126,19 +140,21 @@ secrets {
   ike-psk {
     id-1 = efw
     id-2 = r202
-    secret = "nsd-efw-r202-psk-2026"
+    secret = "nsd-r202-efw-psk-2026"
   }
 }
 CONF
 
-echo ">>> Riavvio StrongSwan su eFW..."
-service ipsec restart || service strongswan restart
-sleep 2
+echo ">>> Avvio Pulito StrongSwan su eFW..."
+# Usiamo ipsec start diretto per evitare problemi con script di init vecchi
+/usr/lib/ipsec/starter --daemon charon || /usr/sbin/ipsec start
+sleep 3
 
 echo ">>> Caricamento credenziali..."
 swanctl --load-creds
 swanctl --load-conns
 
-echo ">>> Stato Tunnel:"
+echo ">>> In attesa di connessione..."
+# Monitoriamo i log in tempo reale per vedere l'errore se capita
 swanctl --list-sas
 EOF

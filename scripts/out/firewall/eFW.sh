@@ -45,6 +45,7 @@ echo "--- Configurazione Firewall eFW ---"
 
   # eFW maschera le LAN interne uscendo verso la DMZ/GW200
   iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+  iptables -t nat -I POSTROUTING 1 -s 10.200.1.0/24 -d 10.202.3.0/24 -j ACCEPT
  
   echo "Firewall eFW configurato."
   iptables -L -v -n
