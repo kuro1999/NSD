@@ -165,7 +165,7 @@ iptables -L -v -n
 # vedo policy + contatori (capisci subito cosa sta matchando)
 ```
 
-Su Firewall:
+Su eFirewall:
 ```bash
 iptables -t nat -L -v -n
 # verifico che il masquerade stia effettivamente lavorando
