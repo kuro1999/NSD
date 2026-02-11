@@ -258,7 +258,7 @@ Il dominio AS100 implementa un **IGP OSPF** per l’instradamento interno e un *
 
 Firewall policy
 ----------------
-**Descrizione estesa delle policy e flussi:** `docs/03-firewall-policy.md`
+> Documentazione di dettaglio e configurazioni: [`docs/03-firewall-policy.md`](./docs/03-firewall-policy.md)
 
 La politica di sicurezza è applicata tramite un firewall perimetrale esterno (**eFW**), un gateway edge (**GW200**) e un firewall interno (**iFW**), con regole stateful che consentono solo i flussi esplicitamente autorizzati:
 
@@ -272,7 +272,7 @@ La politica di sicurezza è applicata tramite un firewall perimetrale esterno (*
 
 Le regole firewall sono implementate tramite script di configurazione `iptables` su macchine Linux. Di seguito un estratto di configurazione che illustra la politica di default restrittiva e alcune regole chiave.
 
-Per le configurazioni vedi script in `scripts/out/firewall/`.
+>_Vedere per le configurazioni [`scripts/out/firewall/`](./scripts/out/firewall)
 
 * * *
 
