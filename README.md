@@ -165,7 +165,7 @@ iptables -L -v -n
 # vedo policy + contatori (capisci subito cosa sta matchando)
 ```
 
-Se usi NAT (GW200):
+Su Firewall:
 ```bash
 iptables -t nat -L -v -n
 # verifico che il masquerade stia effettivamente lavorando
@@ -257,19 +257,22 @@ Il dominio AS100 implementa un **IGP OSPF** per l’instradamento interno e un *
 * * *
 
 Firewall policy
--------------------------
+----------------
+**Descrizione estesa delle policy e flussi:** `docs/03-firewall-policy.md`
 
-> Descrizione estesa delle policy e flussi: [`docs/03-firewall-policy.md`](./docs/03-firewall-policy.md)
+La politica di sicurezza è applicata tramite un firewall perimetrale esterno (**eFW**), un gateway edge (**GW200**) e un firewall interno (**iFW**), con regole stateful che consentono solo i flussi esplicitamente autorizzati:
 
-La **politica di sicurezza** è applicata tramite un firewall perimetrale esterno (`eFW`), un gateway edge (`GW200`) e un firewall interno (`iFW`), con regole _stateful_ che consentono solo i flussi esplicitamente autorizzati:
-*   **Ingresso dalla rete esterna verso DMZ/Enterprise:** consentito solo traffico **DNS** (UDP/TCP porta `53`) e **HTTP** (TCP porta `80`) destinato al server in `DMZ` (`DNS-server` – IP `2.80.200.3`), oltre al traffico **IPsec** verso il firewall esterno `eFW` (IP `2.80.200.2`) sulle porte UDP `500/4500` e protocollo ESP. Qualsiasi altro traffico in ingresso da `AS100`/Internet è scartato dai filtri su `GW200`/`eFW`. 
-*   **LAN interna (`LAN2`) verso esterno:** il client `LAN-client` in `LAN2` è autorizzato ad accedere a Internet e `DMZ` **solo per connessioni originate dalla LAN interna** (regola stateful: le risposte sono permesse). Tentativi di connessione _in ingresso_ verso `LAN2` non sono ammessi (dato che i firewall hanno policy di default **DROP**).
-*   **Traffico AV (`LAN1` ↔ `LAN3`):** gli host antivirus in `LAN1` (`AV1-3`) sono **isolati** dal resto della rete locale; è permesso **solo** il traffico tra `LAN1` e `LAN3`, necessario alla comunicazione **AV ↔ `central-node`**. In particolare, `eFW` e `iFW` consentono il transito delle connessioni tra gli IP di `LAN1` (`10.200.1.0/24`) e `LAN3` (`10.202.3.0/24`) – questo traffico viene cifrato via VPN IPsec (vedi sezione successiva). 
-*   **NAT:** Il gateway `GW200` effettua NAT (masquerading) per il traffico originato dalle reti enterprise verso l’esterno (ad esempio, la `DMZ` o `LAN2` che accedono a Internet tramite `AS100` useranno come sorgente l’IP pubblico di `GW200`). Ciò assicura che le risposte tornino correttamente e nasconde gli IP interni.
+* **Ingresso dalla rete esterna verso DMZ/Enterprise:** È consentito solo il traffico **DNS** (UDP/TCP porta 53) e **HTTP** (TCP porta 80) destinato al server in DMZ (*DNS-server – IP 2.80.200.3*), oltre al traffico **IPsec** verso il firewall esterno eFW (*IP 2.80.200.2*) sulle porte UDP 500/4500 e protocollo ESP. Qualsiasi altro traffico in ingresso da AS100/Internet è scartato dai filtri su GW200/eFW.
 
-Le regole firewall sono implementate tramite script di configurazione `iptables` su macchine Linux. Di seguito un estratto di configurazione di `GW200` che illustra la politica di default restrittiva e alcune regole chiave (stateful inspection e aperture mirate):
+* **LAN interna (LAN2) verso esterno:** Il client *LAN-client* in LAN2 è autorizzato ad accedere a Internet e DMZ solo per connessioni **originate dalla LAN interna** (regola stateful: le risposte sono permesse). Tentativi di connessione in ingresso verso LAN2 non sono ammessi (policy di default DROP).
 
->_Per le configurazioni vedi script in [`scripts/out/firewall/`](scripts/out/firewall)._
+* **Traffico AV (LAN1 ↔ LAN3):** Gli host antivirus in LAN1 (AV1-3) sono isolati dal resto della rete locale; è permesso solo il traffico tra LAN1 e LAN3, necessario alla comunicazione AV ↔ central-node. In particolare, eFW e iFW consentono il transito delle connessioni tra gli IP di LAN1 (10.200.1.0/24) e LAN3 (10.202.3.0/24) – questo traffico viene cifrato via **VPN IPsec** (vedi sezione successiva).
+
+* **NAT:** Il firewall perimetrale esterno (**eFW**) effettua ora il **NAT (masquerading)** per il traffico originato dalle reti interne (Enterprise, DMZ, LAN2) e diretto verso l'esterno. Di conseguenza, il traffico esce verso il gateway GW200 utilizzando l'IP dell'interfaccia esterna di eFW. Il GW200 agisce come router di transito verso AS100/Internet senza applicare ulteriore NAT, limitandosi all'instradamento e al filtraggio base.
+
+Le regole firewall sono implementate tramite script di configurazione `iptables` su macchine Linux. Di seguito un estratto di configurazione che illustra la politica di default restrittiva e alcune regole chiave.
+
+Per le configurazioni vedi script in `scripts/out/firewall/`.
 
 * * *
 
