@@ -64,7 +64,7 @@
 | Esterno                  | **2.80.200.3**  | udp/53 + tcp/53        | ALLOW              | **GW200**                       |
 | Esterno                  | **2.80.200.2**  | udp/500, udp/4500, ESP | ALLOW              | **GW200 + eFW(INPUT)**          |
 | **10.200.2.10**          | Esterno + DMZ   | any                    | ALLOW **stateful** | **iFW (+ eFW/GW200)**           |
-| **10.200.1.11-13** (AV)  | **10.202.3.10** | (servizi AV)           | ALLOW              | **eFW (e iFW se attraversato)** |
+| **10.200.1.11-13** (AV)  | **10.202.3.10** | (servizi AV)           | ALLOW              | **eFW**                         |
 | **10.200.1.11-13** (AV)  | altro           | any                    | DENY               | **eFW/iFW**                     |
 
 ---
