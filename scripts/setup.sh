@@ -976,6 +976,7 @@ network={
   macsec_policy=1
   mka_cak=$CAK
   mka_ckn=$CKN
+  mka_priority=16
 }
 EOF2
 
@@ -1010,6 +1011,7 @@ network={
   macsec_policy=1
   mka_cak=$CAK
   mka_ckn=$CKN
+  mka_priority=255
 }
 EOF2
 
@@ -1043,6 +1045,7 @@ network={
   macsec_policy=1
   mka_cak=$CAK
   mka_ckn=$CKN
+  mka_priority=255
 }
 EOF2
 
